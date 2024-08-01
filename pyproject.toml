@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "pdmp_jax"
+name = "pdmp-jax"
 version = "0.1.0"
 description = "A general PDMP sampler in JAX"
 authors = ["Charly Andral <andral@ceremade.dauphine.fr>"]
