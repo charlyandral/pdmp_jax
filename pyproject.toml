@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "pdmp-jax"
+version = "0.1.0"
+description = "A general PDMP sampler in JAX"
+authors = ["Charly Andral <andral@ceremade.dauphine.fr>"]
+license = "MIT License"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+jax = "^0.4.31"
+jaxlib = "^0.4.31"
+jaxtyping = "^0.2.33"
+jax-tqdm = "^0.2.2"
+matplotlib = "^3.9.1"
+seaborn = "^0.13.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
