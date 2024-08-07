@@ -11,11 +11,65 @@ It contains the following PDMP samplers:
 - Boomerang Sampler (Bierkens, J., Grazzi, S., Kamatani, K. &amp; Roberts, G.. (2020). The Boomerang Sampler. <i>Proceedings of the 37th International Conference on Machine Learning</i>, in <i>Proceedings of Machine Learning Research</i> 119:908-918 Available from https://proceedings.mlr.press/v119/bierkens20a.html )
 
 
-The implementation relies on a general class PDMP that is used to define all the PDMP samplers, making it easy to add new PDMP samplers.
 
 It can be installed using pip:
 ```bash
 pip install pdmp-jax
 ```
 
-The file `example.ipynb` contains an example of how to use the package.
+
+Other PDMP schemes can be easily added by defining a new class that inherits from the PDMP class. 
+
+## Example
+    
+```python
+import jax 
+jax.config.update("jax_enable_x64", True)
+
+
+import jax.numpy as jnp
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pdmp_jax as pdmp
+
+
+
+# define a potential 
+# here 2D banana potential and gaussian on the other dimensions
+def U(x):
+    mean_x2 = (x[0]**2 - 1 )
+    return -(- x[0]**2 + -(x[1]-mean_x2)**2 - jnp.sum((x[2:])**2) )/ 2
+
+dim = 50
+# define the gradient of the potential. Using JAX, no need to define it explicitly
+grad_U = jax.grad(U)
+seed = 8
+key = jax.random.PRNGKey(seed)
+xinit = jnp.ones((dim,)) # initial position
+vinit = jnp.ones((dim,))  # initial velocity
+grid_size = 10 # number of grid points
+N_sk = 1000000 # number of skeleton points
+N = 1000000 # number of samples
+sampler = pdmp.ZigZag(dim, grad_U, grid_size)
+# sample the skeleton of the process 
+out = sampler.sample_skeleton(N_sk, xinit, vinit, seed,verbose = True)
+
+# sample from the skeleton
+sample = sampler.sample_from_skeleton(N,out)
+
+# other possibilty : use sample() method directly
+sample2 = sampler.sample(N_sk=N_sk, N_samples=N, xinit=xinit, vinit=vinit, seed=seed, verbose=True)
+
+# plot the first two dimensions of the sample
+plt.figure()
+sns.jointplot(x = sample[:,0],y = sample[:,1])
+plt.show()
+```
+
+
+The file `example.ipynb` contains a more detailed example with all the different PDMP samplers implemented in the package.
+
+
+The package is still under development, so if you find any bugs or have any suggestions, please open an issue or a pull request.
+

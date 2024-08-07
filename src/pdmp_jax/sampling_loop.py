@@ -121,9 +121,10 @@ def if_not_accept(state: PdmpState) -> PdmpState:
     key, subkey = jax.random.split(state.key)
     exp_rv = state.exp_rv + jax.random.exponential(subkey)
     tp, lambda_bar = next_event(state.upper_bound, exp_rv)
+    # problem here with tp if x64 is used before importing the package
     horizon = jnp.where(state.adaptive, state.horizon / 1.04, state.horizon)
     state = state._replace(
-        tp=jnp.asarray(tp), # fix a issue when using 64 bits for some reason
+        tp=tp,
         exp_rv=exp_rv,
         lambda_bar=lambda_bar,
         key=key,
