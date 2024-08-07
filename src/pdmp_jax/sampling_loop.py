@@ -123,7 +123,7 @@ def if_not_accept(state: PdmpState) -> PdmpState:
     tp, lambda_bar = next_event(state.upper_bound, exp_rv)
     horizon = jnp.where(state.adaptive, state.horizon / 1.04, state.horizon)
     state = state._replace(
-        tp=tp,
+        tp=jnp.asarray(tp), # fix a issue when using 64 bits for some reason
         exp_rv=exp_rv,
         lambda_bar=lambda_bar,
         key=key,

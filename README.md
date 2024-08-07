@@ -13,3 +13,9 @@ It contains the following PDMP samplers:
 
 The implementation relies on a general class PDMP that is used to define all the PDMP samplers, making it easy to add new PDMP samplers.
 
+It can be installed using pip:
+```bash
+pip install pdmp-jax
+```
+
+The file `example.ipynb` contains an example of how to use the package.

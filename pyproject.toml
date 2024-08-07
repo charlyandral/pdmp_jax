@@ -1,10 +1,11 @@
 [tool.poetry]
 name = "pdmp-jax"
-version = "0.1.0"
+version = "0.1.1"
 description = "A general PDMP sampler in JAX"
 authors = ["Charly Andral <andral@ceremade.dauphine.fr>"]
 license = "MIT License"
 readme = "README.md"
+repository = "https://github.com/charlyandral/pdmp_jax"
 
 [tool.poetry.dependencies]
 python = "^3.10"
