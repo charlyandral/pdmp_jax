@@ -10,17 +10,48 @@ from .pdmp import PDMP
 
 
 class ForwardEventChain(PDMP):
+    """
+    ForwardEventChain class for the Forward Event Chain sampler.
+    Args:
+        dim (int): The dimension of the space.
+        grad_U (Callable[[Array], Array]): The gradient of the potential energy function.
+        grid_size (int, optional): The number of grid points for discretizing the space. Defaults to 10.
+        tmax (float, optional): The horizon for the grid. Defaults to 1.0. If 0, adaptive tmax is used.
+        refresh_ortho (float, optional): The refresh rate for the orthogonal component, i.e. the probability to perform the rotation on the orthogonal space. Defaults to 0.1.
+        signed_bound (bool, optional): Whether to use signed bound strategy. Defaults to True.
+        adaptive (bool, optional): Whether to use adaptive tmax Defaults to True.
+        **kwargs: Additional keyword arguments.
+    Attributes:
+        dim (int): The dimension of the space.
+        refresh_rate (float): The refresh rate. Is always 0 in the Forward Event Chain.
+        refresh_ortho (float): The refresh rate for the orthogonal component.
+        grad_U (Callable[[Array], Array]): The gradient of the potential.
+        grid_size (int): The number of grid points for discretizing the space.
+        tmax (float): The tmax for the grid.
+        adaptive (bool): Whether to use adaptive tmax.
+        vectorized_bound (bool): Whether to use vectorized strategy.
+        signed_bound (bool): Whether to use signed strategy.
+        integrator (Callable[[Array, Array, float], Tuple[Array, Array]]): The integrator function.
+        rate (Array): The rate of the process.
+        rate_vect (Array): The vectorized rate. Not used in the Forward Event Chain.
+        signed_rate (Array): The signed rate.
+        signed_rate_vect (Array): The vectorized and signed rate. Not used in the Forward Event Chain.
+        velocity_jump (Callable[[Array, Array, Any], Array]): The velocity jump function.
+        state (Any): The state of the ZigZag sampler.
+    """
+    
     def __init__(
         self,
         dim,
         grad_U,
-        grid_size=100,
+        grid_size=10,
         tmax=2.0,
         refresh_ortho=0.1,
         signed_bound=True,
         adaptive=True,
         **kwargs,
-    ):
+    ):  
+        # Check if the dimension is greater than 2
         if dim <= 2:
             raise ValueError(
                 "The dimension must be greater than 2 to use the ForwardEventChain"
@@ -30,21 +61,25 @@ class ForwardEventChain(PDMP):
         self.refresh_ortho = refresh_ortho
         self.grad_U = jax_partial(grad_U)
         self.grid_size = grid_size
+        # adaptive tmax if tmax is 0
         if tmax == 0:
             self.tmax = 1.0
             self.adaptive = True
         else:
             self.tmax = float(tmax)
             self.adaptive = adaptive
-        self.vectorized_bound = False
+        self.vectorized_bound = False # vectorized strategy is not used in the forward event chain
         self.signed_bound = signed_bound
 
+        # define the integrator function
         self.integrator = jax_partial(lambda x, v, t: (x + (v * t), v))
 
+        #initialize the rate
         self.rate, self.rate_vect, self.signed_rate, self.signed_rate_vect = (
             self._init_bps_rate()
         )
 
+        # define the velocity jump function
         def _velocity_jump_event_chain(x, v, key):
             subkey1, subkey2, subkey3 = jax.random.split(key, 3)
             dim = x.shape[0]

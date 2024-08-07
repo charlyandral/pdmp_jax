@@ -18,6 +18,32 @@ import seaborn as sns
 
 
 class PDMP:
+    """
+    Genereic PDMP class for sampling from a piecewise deterministic Markov process.
+    Attributes:
+        dim (int): The dimension of the space.
+        refresh_rate (float): The refresh rate. 
+        grad_U (Callable[[Array], Array]): The gradient of the potential.
+        grid_size (int): The number of grid points for discretizing the space.
+        tmax (float): The tmax for the grid.
+        adaptive (bool): Whether to use adaptive tmax.
+        vectorized_bound (bool): Whether to use vectorized strategy.
+        signed_bound (bool): Whether to use signed strategy.
+        integrator (Callable[[Array, Array, float], Tuple[Array, Array]]): The integrator function.
+        rate (Array): The rate of the process.
+        rate_vect (Array): The vectorized rate.
+        signed_rate (Array): The signed rate.
+        signed_rate_vect (Array): The vectorized and signed rate. 
+        velocity_jump (Callable[[Array, Array, Any], Array]): The velocity jump function.
+        state (Any): The state of the ZigZag sampler.
+    Methods:
+        init_state(xinit: Float[Array, "dim"], vinit: Float[Array, "dim"], seed: int) -> PdmpState:
+        sample_skeleton(n_sk: int, xinit: Float[Array, "dim"], vinit: Float[Array, "dim"], seed: int, verbose=True) -> PdmpOutput:
+        sample_from_skeleton(N: int, output: PdmpOutput) -> Float[Array, "N dim"]:
+        sample(N_sk: int, N_samples: int, xinit: Float[Array, "dim"], vinit: Float[Array, "dim"], seed: int, verbose: bool = True) -> Float[Array, "N_samples dim"]:
+        _init_zz_rate() -> Tuple[Callable[[Array, Array, Float], Float], Callable[[Array, Array, Float], Float], None, Callable[[Array, Array, Float], Float]]:
+        _init_bps_rate() -> Tuple[Callable[[Array, Array, Float], Float], None, Callable[[Array, Array, Float], Float], None]:
+    """
     def __init__(self):
         self.dim: Int
         self.refresh_rate: Float
@@ -65,7 +91,7 @@ class PDMP:
             rate = self.rate
             rate_vect = self.rate_vect
             refresh_rate = 0.0
-
+        # if the grid size is 0, we use the constant upper bound strategy using the Brent's algorithm
         if self.grid_size == 0:
 
             def upper_bound_func(x, v, horizon):
