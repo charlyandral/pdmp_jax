@@ -17,7 +17,7 @@ pip install pdmp-jax
 ```
 
 
-Other PDMP schemes can be easily added by defining a new class that inherits from the PDMP class. 
+
 
 ## Example
     
@@ -69,6 +69,11 @@ plt.show()
 
 The file `example.ipynb` contains a more detailed example with all the different PDMP samplers implemented in the package.
 
+## A few remarks
 
-The package is still under development, so if you find any bugs or have any suggestions, please open an issue or a pull request.
+- The package is built on top of JAX, so the potential should be defined using JAX functions to benefit from the automatic differentiation.
+- The package is built to be as general as possible, so it should be easy to add new PDMP samplers by defining a new class that inherits from the PDMP class.
+- The implementation of the main sampling loop is done using the 'jax.lax.scan' function, thus it uses JAX's JIT compiler.
+- All tests were done on a CPU, so even if JAX is GPU compatible, the package has not been tested on a GPU.
+- The package is still under development, so if you find any bugs or have any suggestions, please open an issue or a pull request.
 
