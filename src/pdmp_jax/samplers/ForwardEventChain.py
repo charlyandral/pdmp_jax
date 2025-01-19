@@ -81,7 +81,7 @@ class ForwardEventChain(PDMP):
 
         # define the velocity jump function
         def _velocity_jump_event_chain(x, v, key):
-            subkey1, subkey2, subkey3 = jax.random.split(key, 3)
+            subkey1, subkey2, subkey3, subkey4 = jax.random.split(key, 4)
             dim = x.shape[0]
             u = jax.random.uniform(subkey1)
             rho = -((1 - u ** (2.0 / (dim - 1.0))) ** (0.5))
@@ -89,6 +89,17 @@ class ForwardEventChain(PDMP):
             grad_U_x = grad_U_x / jnp.linalg.norm(grad_U_x)
             v_par = (v @ grad_U_x) * grad_U_x
             v_ortho = v - v_par
+            v_ortho = jax.lax.cond(
+            jnp.linalg.norm(v_ortho) < 1e-10,
+            lambda _: regenerate_orthogonal_vector(subkey4),
+            lambda _: v_ortho,
+            operand=None
+            )
+
+            def regenerate_orthogonal_vector(key):
+                v_ortho_new = jax.random.normal(key, shape=(dim,))
+                v_ortho_new -= (v_ortho_new @ grad_U_x) * grad_U_x
+                return v_ortho_new
 
             def _refresh_ortho(key):
                 g = jax.random.normal(key, shape=(2, dim))
