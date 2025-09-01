@@ -1,22 +1,30 @@
-[tool.poetry]
-name = "pdmp-jax"
+[project]
+name = "pdmp_jax"
 version = "0.1.1"
 description = "A general PDMP sampler in JAX"
-authors = ["Charly Andral <andral@ceremade.dauphine.fr>"]
-license = "MIT License"
+authors = [{ name = "Charly Andral", email = "andral@ceremade.dauphine.fr" }]
+requires-python = "~=3.10"
 readme = "README.md"
-repository = "https://github.com/charlyandral/pdmp_jax"
+license = { file = "LICENSE" }
+dependencies = [
+    "jax==0.6.2",
+    "jaxlib==0.6.2",
+    "jaxtyping>=0.2.33",
+    "jax-tqdm>=0.2.2",
+    "matplotlib>=3.10",
+    "seaborn>=0.13.2",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-jax = "^0.4.31"
-jaxlib = "^0.4.31"
-jaxtyping = "^0.2.33"
-jax-tqdm = "^0.2.2"
-matplotlib = "^3.9.1"
-seaborn = "^0.13.2"
-
+[project.urls]
+Repository = "https://github.com/charlyandral/pdmp_jax"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ipython>=8.37.0",
+    "ipywidgets>=8.1.7",
+    "jupyter>=1.1.1",
+]

@@ -2,8 +2,9 @@ import jax
 import jax.numpy as jnp
 from jax.tree_util import Partial as jax_partial
 
-from .namedtuples import PdmpState, PdmpOutput
+from .namedtuples import PdmpOutput, PdmpState
 from .upper_bound import next_event
+
 
 def output_state(state: PdmpState) -> PdmpOutput:
     """

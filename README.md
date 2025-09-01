@@ -1,6 +1,17 @@
 # pdmp_jax
 
+## ⚠️ Performance Notice
 
+Some recent JAX releases have CPU performance regressions  
+(especially **0.7.1**). For best results we recommend:
+
+- Use **JAX 0.6.2**  
+- Set the environment variable:
+
+  ```bash
+  export XLA_FLAGS="--xla_cpu_use_thunk_runtime=false"
+  
+## Documentation
 This repository contains a JAX implementation of the PDMP sampler describe in the article ["Automated Techniques for Efficient Sampling of Piecewise-Deterministic Markov Processes"](https://arxiv.org/abs/2408.03682).
 The following PDMP samplers are implemented:
 - [Zig-Zag sampler](https://doi.org/10.1214/18-AOS1715) (Joris Bierkens, Paul Fearnhead, Gareth Roberts. "The Zig-Zag process and super-efficient sampling for Bayesian analysis of big data." The Annals of Statistics, 47(3) 1288-1320 June 2019.)
