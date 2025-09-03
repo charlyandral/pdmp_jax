@@ -11,8 +11,7 @@ import pdmp_jax as pdmp
 
 
 def U(x):
-    mean_x2 = x[0] ** 2 - 1
-    return -(-(x[0] ** 2) + -((x[1] - mean_x2) ** 2) - jnp.sum((x[2:]) ** 2)) / 2
+    return jnp.sum(x**2)
 
 
 dim = 50
@@ -24,7 +23,7 @@ xinit = jnp.ones((dim,))  # initial position
 vinit = jnp.ones((dim,))  # initial velocity
 grid_size = 10
 N = 1000000  # number of samples
-sampler = pdmp.ZigZag(dim, grad_U, grid_size)
+sampler = pdmp.Boomerang(dim, grad_U, grid_size)
 sampler.sample(1, 1, xinit, vinit, seed, verbose=False)
 
 start = time()

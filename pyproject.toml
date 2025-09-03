@@ -27,4 +27,5 @@ dev = [
     "ipython>=8.37.0",
     "ipywidgets>=8.1.7",
     "jupyter>=1.1.1",
+    "pytest>=8.4.1",
 ]
