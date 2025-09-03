@@ -62,6 +62,11 @@ def true_mean(out):
 
 
 # %%
+%load_ext pyinstrument
+
+
+#%%
+%%pyinstrument
 grid_size = 30
 tmax = 0.1
 sampler = pdmp.BouncyParticle(dim, grad_U, grid_size, tmax, adaptive=True)
@@ -73,7 +78,7 @@ vinit = jax.random.normal(seed2, shape=(2,))
 vinit = vinit / jnp.linalg.norm(vinit)
 out = sampler.sample_skeleton(1000000, xinit, vinit, seed, verbose=True)
 sample = sampler.sample_from_skeleton(100000, out)
-pdmp.plot(out)
+# pdmp.plot(out)
 
 print(true_mean(out))
 
@@ -89,7 +94,7 @@ def loop(grid_size, seed, tmax):
     vinit = jax.random.normal(seed2, shape=(2,))
     vinit = vinit / jnp.linalg.norm(vinit)
     begin = time()
-    out = sampler.sample_skeleton(1000000, xinit, vinit, seed, verbose=False)
+    out = sampler.sample_skeleton(10000, xinit, vinit, seed, verbose=False)
     end = time()
     dico = out._asdict()
     dico["grid_size"] = grid_size

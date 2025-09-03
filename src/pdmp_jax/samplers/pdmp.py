@@ -1,20 +1,20 @@
+from functools import partial
+from typing import Callable, Tuple
+
+import equinox
 import jax
 import jax.numpy as jnp
-from jax.tree_util import Partial as jax_partial
-
-from typing import  Callable, Tuple
-from jaxtyping import Float, Int, PRNGKeyArray, Bool, Array
-
-from jax_tqdm import scan_tqdm
-
-from ..namedtuples import PdmpState, PdmpOutput
-from ..sampling_loop import one_step, output_state
-from ..upper_bound import upper_bound_constant, upper_bound_grid, upper_bound_grid_vect
-
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import numpy as np
 import seaborn as sns
+from jax.tree_util import Partial as jax_partial
+from jax_tqdm import scan_tqdm
+from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray
+
+from ..namedtuples import PdmpOutput, PdmpState
+from ..sampling_loop import one_step, output_state
+from ..upper_bound import upper_bound_constant, upper_bound_grid, upper_bound_grid_vect
 
 
 class PDMP:
@@ -22,7 +22,7 @@ class PDMP:
     Genereic PDMP class for sampling from a piecewise deterministic Markov process.
     Attributes:
         dim (int): The dimension of the space.
-        refresh_rate (float): The refresh rate. 
+        refresh_rate (float): The refresh rate.
         grad_U (Callable[[Array], Array]): The gradient of the potential.
         grid_size (int): The number of grid points for discretizing the space.
         tmax (float): The tmax for the grid.
@@ -33,7 +33,7 @@ class PDMP:
         rate (Array): The rate of the process.
         rate_vect (Array): The vectorized rate.
         signed_rate (Array): The signed rate.
-        signed_rate_vect (Array): The vectorized and signed rate. 
+        signed_rate_vect (Array): The vectorized and signed rate.
         velocity_jump (Callable[[Array, Array, Any], Array]): The velocity jump function.
         state (Any): The state of the ZigZag sampler.
     Methods:
@@ -44,6 +44,7 @@ class PDMP:
         _init_zz_rate() -> Tuple[Callable[[Array, Array, Float], Float], Callable[[Array, Array, Float], Float], None, Callable[[Array, Array, Float], Float]]:
         _init_bps_rate() -> Tuple[Callable[[Array, Array, Float], Float], None, Callable[[Array, Array, Float], Float], None]:
     """
+
     def __init__(self):
         self.dim: Int
         self.refresh_rate: Float
@@ -158,6 +159,7 @@ class PDMP:
             output = output_state(state)
             return state, output
 
+        one_step_inside = jax.jit(one_step_inside)
         if verbose:
             one_step_inside = scan_tqdm(n_sk)(one_step_inside)
 
@@ -166,9 +168,23 @@ class PDMP:
         state, output = jax.lax.scan(one_step_inside, initial_state, jnp.arange(n_sk))
         self.state = state
         # concatenate the initial output with the output
-        output = jax.tree.map(
-            lambda x, y: jnp.insert(x, 0, y, axis=0), output, initial_output
-        )
+
+        def insert(output, initial_output):
+            return jax.tree.map(
+                lambda x, y: jnp.insert(x, 0, y, axis=0), output, initial_output
+            )
+
+        def prepend(output, initial_output):
+            return jax.tree.map(
+                lambda x, y: jnp.concatenate(
+                    (jnp.reshape(jnp.asarray(y, dtype=x.dtype), (1, *x.shape[1:])), x),
+                    axis=0,
+                ),
+                output,
+                initial_output,
+            )
+
+        output = prepend(output, initial_output)
         return output
 
     def sample_from_skeleton(self, N: int, output: PdmpOutput) -> Float[Array, "N dim"]:
@@ -279,7 +295,6 @@ class PDMP:
         )
 
 
-
 def plot(output: PdmpOutput):
     """
     Plots various histograms based on the given PdmpOutput object. The histograms include:
@@ -287,7 +302,7 @@ def plot(output: PdmpOutput):
     - Acceptance rate histogram (top right)
     - Hitting horizon histogram (bottom left)
     - Rejection histogram (bottom right)
-    
+
 
     Parameters:
     - output (PdmpOutput): The PdmpOutput object containing the data to be plotted.
