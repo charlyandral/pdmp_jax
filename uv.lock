@@ -951,6 +951,18 @@ wheels = [
 ]
 
 [[package]]
+name = "joblib-stubs"
+version = "1.5.2.0.20250831"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/88/80/2e0ea0e43642ab69b33ad0d39c73378f52cc8b961b3dfc2519d53639e518/joblib_stubs-1.5.2.0.20250831.tar.gz", hash = "sha256:1b419c5b5238cbfd2759ef2e463ae3399ba1d3a6cbdc213a9ac339e6312b21ef", size = 19886, upload-time = "2025-08-31T11:39:17.607Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/57/f7/f73413f8c13d208f291d1430528b415331320868c352b6e8e5442c5ad053/joblib_stubs-1.5.2.0.20250831-py3-none-any.whl", hash = "sha256:2b75f04fbb98975d207cc3d7b686c538ee1b2a749cb63c035ce41ff97a0eb4bc", size = 36252, upload-time = "2025-08-31T11:39:16.447Z" },
+]
+
+[[package]]
 name = "json5"
 version = "0.12.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1882,6 +1894,7 @@ dev = [
     { name = "ipython", version = "8.37.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "ipython", version = "9.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "ipywidgets" },
+    { name = "joblib-stubs" },
     { name = "jupyter" },
     { name = "pytest" },
 ]
@@ -1900,6 +1913,7 @@ requires-dist = [
 dev = [
     { name = "ipython", specifier = ">=8.37.0" },
     { name = "ipywidgets", specifier = ">=8.1.7" },
+    { name = "joblib-stubs", specifier = ">=1.5.2.0.20250831" },
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "pytest", specifier = ">=8.4.1" },
 ]

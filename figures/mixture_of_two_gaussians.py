@@ -1,21 +1,24 @@
 # %%
 import os
+from typing import Any
 
 os.environ["XLA_FLAGS"] = "--xla_cpu_use_thunk_runtime=false"
+
 from itertools import product
 from time import time
 
 import jax
-
-print(jax.__version__)
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from joblib import Parallel, delayed
+from tqdm.notebook import tqdm
 
 import pdmp_jax as pdmp
+
+print(jax.__version__)
 
 # %load_ext autoreload
 # %autoreload 2
@@ -62,12 +65,8 @@ def true_mean(out):
 
 
 # %%
-%load_ext pyinstrument
 
-
-#%%
-%%pyinstrument
-grid_size = 30
+grid_size = 50
 tmax = 0.1
 sampler = pdmp.BouncyParticle(dim, grad_U, grid_size, tmax, adaptive=True)
 seed = 10
@@ -76,9 +75,11 @@ xinit = jax.random.normal(seed1, shape=(2,))
 # vinit = jax.random.randint(seed2, (2,), 0, 2) * 2 - 1
 vinit = jax.random.normal(seed2, shape=(2,))
 vinit = vinit / jnp.linalg.norm(vinit)
+# %%
 out = sampler.sample_skeleton(1000000, xinit, vinit, seed, verbose=True)
+# %%
 sample = sampler.sample_from_skeleton(100000, out)
-# pdmp.plot(out)
+pdmp.plot(out)
 
 print(true_mean(out))
 
@@ -87,14 +88,15 @@ plt.plot(out.horizon)
 # %%
 
 
-def loop(grid_size, seed, tmax):
+def loop(grid_size, seed, tmax) -> dict[str, Any]:
     sampler = pdmp.BouncyParticle(dim, grad_U, grid_size, tmax, adaptive=False)
     seed1, seed2 = jax.random.split(jax.random.PRNGKey(seed))
     xinit = jax.random.normal(seed1, shape=(2,))
     vinit = jax.random.normal(seed2, shape=(2,))
     vinit = vinit / jnp.linalg.norm(vinit)
     begin = time()
-    out = sampler.sample_skeleton(10000, xinit, vinit, seed, verbose=False)
+    out = sampler.sample_skeleton(1000000, xinit, vinit, seed, verbose=False)
+    out.x.block_until_ready()
     end = time()
     dico = out._asdict()
     dico["grid_size"] = grid_size
@@ -118,13 +120,12 @@ tmaxs = [0.0, 0.01, 0.1, 1.0]
 # vects_signeds = [(True,True)]
 iterable = list(product(grid_sizes, seeds, tmaxs))
 
-from tqdm.notebook import tqdm
 
-np.random.shuffle(iterable)
+np.random.shuffle(iterable)  # type: ignore
 print(len(iterable))
-results_fec = Parallel(n_jobs=8, backend="loky")(
+results_fec: list[dict] = Parallel(n_jobs=8, backend="loky")(
     delayed(loop)(*args) for args in tqdm(iterable)
-)
+)  # type: ignore
 
 
 # %%
