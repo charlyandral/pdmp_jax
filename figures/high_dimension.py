@@ -87,7 +87,7 @@ def loop(grid_size, seed, tmax, signed):
     xinit = jnp.zeros((dim,))
     vinit = jnp.ones((dim,))
     begin = time()
-    out = sampler.sample_skeleton(1000000, xinit, vinit, seed, verbose=False)
+    out = sampler.sample_skeleton(100000, xinit, vinit, seed, verbose=False)
     out.x.block_until_ready()
     end = time()
     dico = out._asdict()
@@ -96,7 +96,7 @@ def loop(grid_size, seed, tmax, signed):
     dico["signed"] = signed
     dico["time"] = end - begin
     true_mean_ = true_mean(out)
-    sample = sampler.sample_from_skeleton(1000000, out)
+    sample = sampler.sample_from_skeleton(100000, out)
     dico["mean_error"] = np.array(true_mean_)
     dico["larger_fiveteen"] = np.sum(sample[:, 1] > 15)
     dico.pop("x")

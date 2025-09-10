@@ -1,11 +1,10 @@
+import warnings
+from typing import Callable
+
 import jax
 import jax.numpy as jnp
 from jax.tree_util import Partial as jax_partial
-
-from typing import  Callable
-from jaxtyping import  Bool, Array
-
-import warnings
+from jaxtyping import Array, Bool
 
 from .pdmp import PDMP
 
@@ -39,7 +38,7 @@ class ZigZag(PDMP):
         velocity_jump (Callable[[Array, Array, Any], Array]): The velocity jump function.
         state (Any): The state of the ZigZag sampler.
     """
-    
+
     def __init__(
         self,
         dim: int,
@@ -49,13 +48,15 @@ class ZigZag(PDMP):
         vectorized_bound: Bool = True,
         signed_bound: Bool = True,
         adaptive: Bool = True,
+        alpha_minus: float | None = None,
+        alpha_plus: float | None = None,
         **kwargs,
     ):
         self.dim = dim
         self.refresh_rate = 0.0
         self.grad_U = jax_partial(grad_U)
         self.grid_size = grid_size
-        if tmax == 0: # adaptive tmax if tmax is 0
+        if tmax == 0:  # adaptive tmax if tmax is 0
             self.tmax = 1.0
             self.adaptive = True
         else:
@@ -93,3 +94,6 @@ class ZigZag(PDMP):
         self.velocity_jump = jax_partial(_velocity_jump_zz)
 
         self.state = None
+
+        self.alpha_minus = alpha_minus
+        self.alpha_plus = alpha_plus

@@ -1,7 +1,6 @@
-from functools import partial
+import abc
 from typing import Callable, Tuple
 
-import equinox
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
@@ -10,14 +9,25 @@ import numpy as np
 import seaborn as sns
 from jax.tree_util import Partial as jax_partial
 from jax_tqdm import scan_tqdm
-from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray
+from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray, TypeAlias
+
+from pdmp_jax.namedtuples import BoundBox
 
 from ..namedtuples import PdmpOutput, PdmpState
 from ..sampling_loop import one_step, output_state
 from ..upper_bound import upper_bound_constant, upper_bound_grid, upper_bound_grid_vect
 
+Position: TypeAlias = Float[Array, "dim"]
+Velocity: TypeAlias = Float[Array, "dim"]
+Time: TypeAlias = Float[Array, ""]
+RateIntensity: TypeAlias = Float[Array, ""]
 
-class PDMP:
+Integrator: TypeAlias = Callable[[Position, Velocity, Time], Tuple[Position, Velocity]]
+RateFunction: TypeAlias = Callable[[Position, Velocity, Time], RateIntensity]
+JumpFunction: TypeAlias = Callable[[Position, Velocity, PRNGKeyArray], Velocity]
+
+
+class PDMP(abc.ABC):
     """
     Genereic PDMP class for sampling from a piecewise deterministic Markov process.
     Attributes:
@@ -45,6 +55,7 @@ class PDMP:
         _init_bps_rate() -> Tuple[Callable[[Array, Array, Float], Float], None, Callable[[Array, Array, Float], Float], None]:
     """
 
+    @abc.abstractmethod
     def __init__(self):
         self.dim: Int
         self.refresh_rate: Float
@@ -56,10 +67,15 @@ class PDMP:
         self.signed_bound: Bool
         self.adaptive: Bool
 
-        self.integrator: Callable[[Array, Array, Float], Tuple[Array, Array]]
-        self.rate: Callable[[Array, Array, Float], Float]
-        self.velocity_jump: Callable[[Array, Array, PRNGKeyArray], Array]
+        self.integrator: Integrator
+        self.velocity_jump: JumpFunction
         self.state: PdmpState | None
+        self.rate: RateFunction
+        self.signed_rate: RateFunction
+        self.signed_rate_vect: RateFunction
+        self.rate_vect: RateFunction
+        self.alpha_minus: Float[Array, ""] | None
+        self.alpha_plus: Float[Array, ""] | None
 
     def init_state(
         self,
@@ -95,13 +111,13 @@ class PDMP:
         # if the grid size is 0, we use the constant upper bound strategy using the Brent's algorithm
         if self.grid_size == 0:
 
-            def upper_bound_func(x, v, horizon):
+            def upper_bound_func(x, v, horizon) -> BoundBox:
                 func = jax_partial(lambda t: self.rate(x, v, t))
                 return upper_bound_constant(func, 0.0, horizon)
 
         elif not self.vectorized_bound:
 
-            def upper_bound_func(x, v, horizon):
+            def upper_bound_func(x, v, horizon) -> BoundBox:
                 func = jax_partial(lambda t: rate(x, v, t))
                 return upper_bound_grid(
                     func, 0.0, horizon, self.grid_size, refresh_rate
@@ -128,6 +144,12 @@ class PDMP:
             upper_bound_func,
             upper_bound=boundox,
             adaptive=self.adaptive,
+            alpha_minus=self.alpha_minus
+            if self.alpha_minus is not None
+            else PdmpState._field_defaults["alpha_minus"],
+            alpha_plus=self.alpha_plus
+            if self.alpha_plus is not None
+            else PdmpState._field_defaults["alpha_plus"],
         )
         self.state = state
         return state
@@ -161,7 +183,7 @@ class PDMP:
 
         one_step_inside = jax.jit(one_step_inside)
         if verbose:
-            one_step_inside = scan_tqdm(n_sk)(one_step_inside)
+            one_step_inside = scan_tqdm(n_sk)(one_step_inside)  # type: ignore
 
         initial_state = self.init_state(xinit, vinit, seed)
         initial_output = output_state(initial_state)
@@ -320,7 +342,7 @@ def plot(output: PdmpOutput):
     axs[0, 0].set_title("Time between events histogram")
 
     # Plot 2: Acceptance rate histogram
-    sns.histplot(output.ar, element="step", ax=axs[0, 1])
+    sns.histplot(output.ar, element="step", ax=axs[0, 1])  # type: ignore
     axs[0, 1].set_title("Acceptance rate histogram")
     # make a vertical line for the mean and add a legend
     axs[0, 1].axvline(
@@ -334,7 +356,7 @@ def plot(output: PdmpOutput):
 
     # Plot 3: Hitting horizon histogram
     sns.histplot(
-        output.hitting_horizon,
+        output.hitting_horizon,  # type: ignore
         discrete=True,
         shrink=0.8,
         stat="percent",
@@ -351,7 +373,7 @@ def plot(output: PdmpOutput):
 
     # Plot 4: Rejection histogram
     sns.histplot(
-        output.rejected,
+        output.rejected,  # type: ignore
         discrete=True,
         shrink=0.8,
         stat="percent",

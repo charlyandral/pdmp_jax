@@ -1,6 +1,7 @@
-from typing import NamedTuple, Callable, Tuple
-from jaxtyping import Float, Int, PRNGKeyArray, Bool, Array
+from typing import Callable, NamedTuple, Tuple
+
 import jax.numpy as jnp
+from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray
 
 
 class BoundBox(NamedTuple):
@@ -13,12 +14,11 @@ class BoundBox(NamedTuple):
         cum_sum (Float[Array, "n_grid - 1"]): The cumulative sum of box_max.
         step_size (Float[Array, ""]): The step size of the grid.
     """
-    
-    grid : Float[Array, "n_grid"]
-    box_max : Float[Array, "n_grid - 1"]
-    cum_sum : Float[Array, "n_grid - 1"]
-    step_size: Float[Array, ""]
 
+    grid: Float[Array, "n_grid"]
+    box_max: Float[Array, "n_grid - 1"]
+    cum_sum: Float[Array, "n_grid - 1"]
+    step_size: Float[Array, ""]
 
 
 class PdmpState(NamedTuple):
@@ -74,6 +74,8 @@ class PdmpState(NamedTuple):
     rejected: Int[Array, ""] = jnp.array(0)
     hitting_horizon: Int[Array, ""] = jnp.array(0)
     adaptive: Bool[Array, ""] = jnp.array(False)
+    alpha_minus: Float[Array, ""] = jnp.array(1.04)
+    alpha_plus: Float[Array, ""] = jnp.array(1.01)
 
 
 class PdmpOutput(NamedTuple):

@@ -123,7 +123,9 @@ def if_not_accept(state: PdmpState) -> PdmpState:
     exp_rv = state.exp_rv + jax.random.exponential(subkey)
     tp, lambda_bar = next_event(state.upper_bound, exp_rv)
     # problem here with tp if x64 is used before importing the package
-    horizon = jnp.where(state.adaptive, state.horizon / 1.04, state.horizon)
+    horizon = jnp.where(
+        state.adaptive, state.horizon / state.alpha_minus, state.horizon
+    )
     state = state._replace(
         tp=tp,
         exp_rv=exp_rv,
@@ -138,7 +140,7 @@ def if_not_accept(state: PdmpState) -> PdmpState:
 def move_to_horizon(state: PdmpState) -> PdmpState:
     ts = state.ts + state.horizon
     xi, vi = state.integrator(state.x, state.v, state.horizon)
-    horizon = jnp.where(state.adaptive, state.horizon * 1.01, state.horizon)
+    horizon = jnp.where(state.adaptive, state.horizon * state.alpha_plus, state.horizon)
     state = state._replace(
         x=xi, v=vi, ts=ts, hitting_horizon=state.hitting_horizon + 1, horizon=horizon
     )

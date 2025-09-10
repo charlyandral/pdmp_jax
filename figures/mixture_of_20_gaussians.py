@@ -70,7 +70,7 @@ xinit = -jnp.zeros((dim,))
 vinit = jnp.ones((dim,))
 grid_size = 20
 tmax = 2.5
-sampler = pdmp.ZigZag(dim, grad_U, grid_size, tmax)
+sampler = pdmp.ZigZag(dim, grad_U, grid_size, tmax, alpha_minus=1.1, alpha_plus=1.1)
 out = sampler.sample_skeleton(200000, xinit, vinit, seed, verbose=True)
 # sample = sampler.sample_from_skeleton(1000000,out)
 error = true_mean(out) - jnp.mean(means_gauss, axis=0)
@@ -81,6 +81,8 @@ ar_reject = jnp.concatenate(out.error_value_ar)
 # drop zeros
 ar_reject = ar_reject[ar_reject != 0]
 sns.histplot(ar_reject)  # type: ignore
+# %%
+plt.plot(out.horizon)
 # %%
 
 
