@@ -1,11 +1,18 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
 from jax.tree_util import Partial as jax_partial
+from jaxtyping import Float
 
-from .pdmp import PDMP
+from pdmp_jax.samplers.pdmp import PDMP
 
+if TYPE_CHECKING:
+    from jaxtyping import Array, Float, PRNGKeyArray
 
-
+    from pdmp_jax.typing import Position, Time, Velocity
 
 
 class Boomerang(PDMP):
@@ -37,6 +44,7 @@ class Boomerang(PDMP):
         velocity_jump (Callable[[Array, Array, Any], Array]): The velocity jump function.
         state (Any): The state of the ZigZag sampler.
     """
+
     def __init__(
         self,
         dim,
@@ -50,10 +58,12 @@ class Boomerang(PDMP):
     ):
         self.dim = dim
         self.refresh_rate = refresh_rate
-        self.true_grad_U = jax_partial(grad_U) # keep track of the true gradient
-        self.grad_U = jax_partial(lambda x: grad_U(x) - x) # modified gradient for the boomerang
+        self.true_grad_U = jax_partial(grad_U)  # keep track of the true gradient
+        self.grad_U = jax_partial(
+            lambda x: grad_U(x) - x
+        )  # modified gradient for the boomerang
         self.grid_size = grid_size
-        
+
         # adaptive tmax if tmax is 0
         if tmax == 0:
             self.tmax = 1.0
@@ -66,7 +76,9 @@ class Boomerang(PDMP):
         self.signed_bound = signed_bound
 
         # definition of the integrator
-        def _integrator_boomerang(x, v, t):
+        def _integrator_boomerang(
+            x: Position, v: Velocity, t: Time
+        ) -> tuple[Position, Velocity]:
             xt = x * jnp.cos(t) + v * jnp.sin(t)
             vt = -x * jnp.sin(t) + v * jnp.cos(t)
             return xt, vt
@@ -79,8 +91,7 @@ class Boomerang(PDMP):
         )
 
         # definition of the velocity jump function
-        def _velocity_jump(x, v, key):
-
+        def _velocity_jump(x: Position, v: Velocity, key: PRNGKeyArray) -> Velocity:
             grad_U_x = self.grad_U(x)
             dim = x.shape[0]
             bounce_prob = jnp.maximum(0.0, grad_U_x @ v)
@@ -88,7 +99,7 @@ class Boomerang(PDMP):
             subkey, subkey2 = jax.random.split(key, 2)
             u = jax.random.uniform(subkey)
 
-            def _reflect(vect, normal):
+            def _reflect(vect: Velocity, normal: Float[Array, " dim"]) -> Velocity:
                 normal = normal / jnp.linalg.norm(normal)
                 return vect - 2 * (vect @ normal) * normal
 

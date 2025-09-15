@@ -1,12 +1,17 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable
+
 import jax
 import jax.numpy as jnp
 from jax.tree_util import Partial as jax_partial
 
-from typing import  Callable
-from jaxtyping import  Array
-
-
 from .pdmp import PDMP
+
+if TYPE_CHECKING:
+    from jaxtyping import Array, Float, PRNGKeyArray
+
+    from pdmp_jax.typing import Position, Velocity
 
 
 class BouncyParticle(PDMP):
@@ -38,6 +43,7 @@ class BouncyParticle(PDMP):
         velocity_jump (Callable[[Array, Array, Any], Array]): The velocity jump function.
         state (Any): The state of the ZigZag sampler.
     """
+
     def __init__(
         self,
         dim: int,
@@ -48,13 +54,12 @@ class BouncyParticle(PDMP):
         signed_bound: bool = True,
         adaptive: bool = True,
         **kwargs,
-    ):
-        
+    ) -> None:
         self.dim = dim
         self.refresh_rate = refresh_rate
         self.grad_U = jax_partial(grad_U)
         self.grid_size = grid_size
-        
+
         # adaptive tmax if tmax is 0
         if tmax == 0:
             self.tmax = 1.0
@@ -62,7 +67,7 @@ class BouncyParticle(PDMP):
         else:
             self.tmax = float(tmax)
             self.adaptive = adaptive
-        self.vectorized_bound = False # not used in the Bouncy Particle
+        self.vectorized_bound = False  # not used in the Bouncy Particle
         self.signed_bound = signed_bound
 
         # definition of the integrator
@@ -74,7 +79,7 @@ class BouncyParticle(PDMP):
         )
 
         # definition of the velocity jump function
-        def _velocity_jump(x, v, key):
+        def _velocity_jump(x: Position, v: Velocity, key: PRNGKeyArray) -> Velocity:
             grad_U_x = self.grad_U(x)
             dim = x.shape[0]
             bounce_prob = jnp.maximum(0.0, grad_U_x @ v)
@@ -82,7 +87,7 @@ class BouncyParticle(PDMP):
             subkey, subkey2 = jax.random.split(key, 2)
             u = jax.random.uniform(subkey)
 
-            def _reflect(vect, normal):
+            def _reflect(vect: Velocity, normal: Float[Array, " dim"]) -> Velocity:
                 normal = normal / jnp.linalg.norm(normal)
                 return vect - 2 * (vect @ normal) * normal
 
@@ -95,4 +100,3 @@ class BouncyParticle(PDMP):
 
         self.velocity_jump = jax_partial(_velocity_jump)
         self.state = None
-

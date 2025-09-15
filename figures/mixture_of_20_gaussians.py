@@ -133,7 +133,7 @@ iterable = iterable1 + iterable2
 
 np.random.shuffle(iterable)  # type: ignore
 print(len(iterable))
-results_boomerang: list[dict] = Parallel(n_jobs=8, backend="loky", verbose=10)(
+results_boomerang: list[dict] = Parallel(n_jobs=8, backend="loky", verbose=0)(
     delayed(loop_zz)(*args) for args in tqdm(iterable)
 )
 # %%
@@ -178,7 +178,7 @@ ax[1].set_ylabel("Mean of acceptance rate when larger than 1")
 ax[1].legend(title="Vectorized / signed")
 ax[1].set_title("Measure of the error in the acceptance rate")
 # plt.hlines(0,-1,5)
-plt.savefig("error_bound_ar_reject_zz.pdf")
+# plt.savefig("error_bound_ar_reject_zz.pdf")
 
 # %%
 

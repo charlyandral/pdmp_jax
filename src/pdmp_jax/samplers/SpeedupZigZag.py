@@ -1,10 +1,18 @@
+from __future__ import annotations
+
+import warnings
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
 from jax.tree_util import Partial as jax_partial
 
-import warnings
-
 from .pdmp import PDMP
+
+if TYPE_CHECKING:
+    from jaxtyping import PRNGKeyArray
+
+    from pdmp_jax.typing import Position, Time, Velocity
 
 
 class NonExploSpeedupZigZag(PDMP):
@@ -36,6 +44,7 @@ class NonExploSpeedupZigZag(PDMP):
         velocity_jump (Callable[[Array, Array, Any], Array]): The velocity jump function.
         state (Any): The state of the ZigZag sampler.
     """
+
     def __init__(
         self,
         dim,
@@ -47,7 +56,6 @@ class NonExploSpeedupZigZag(PDMP):
         adaptive=True,
         **kwargs,
     ):
-
         self.dim = dim
         self.refresh_rate = 0.0
         self.grid_size = grid_size
@@ -64,7 +72,9 @@ class NonExploSpeedupZigZag(PDMP):
         self.adaptive = adaptive
 
         # Define the integrator for the non-explosive setting
-        def integrator_path_non_explo(x, v, t):
+        def integrator_path_non_explo(
+            x: Position, v: Velocity, t: Time
+        ) -> tuple[Position, Velocity]:
             d = x.shape[0]
             y = x - v[0] * x[0] * v
             c = v[0] * (y @ v)
@@ -75,11 +85,11 @@ class NonExploSpeedupZigZag(PDMP):
             return y + v[0] * X_1 * v, v
 
         self.integrator = jax_partial(integrator_path_non_explo)
-        
+
         # Modify the gradient of the potential used in the rate to include the change of speed
         self.speed = lambda x: jnp.sqrt(1.0 + x @ x)
         self.grad_speed = jax.grad(self.speed)
-        self.true_grad_U = jax_partial(grad_U) # keep track of the true gradient
+        self.true_grad_U = jax_partial(grad_U)  # keep track of the true gradient
         self.grad_U = jax_partial(
             lambda x: self.speed(x) * self.true_grad_U(x) - self.grad_speed(x)
         )
@@ -87,8 +97,9 @@ class NonExploSpeedupZigZag(PDMP):
         self.rate, self.rate_vect, self.signed_rate, self.signed_rate_vect = (
             self._init_zz_rate()
         )
+
         # Define the velocity jump function
-        def _velocity_jump_zz(x, v, key):
+        def _velocity_jump_zz(x: Position, v: Velocity, key: PRNGKeyArray) -> Velocity:
             lambda_t = jnp.maximum(0.0, self.grad_U(x) * v)
             proba = lambda_t / jnp.sum(lambda_t)
             m = jax.random.choice(key, jnp.arange(v.shape[0]), p=proba)

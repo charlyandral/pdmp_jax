@@ -1,13 +1,19 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
 from jax.tree_util import Partial as jax_partial
 
-
 from .brent import minimize_scalar_bounded_jax
 from .namedtuples import BoundBox
 
+if TYPE_CHECKING:
+    from jaxtyping import Array, Float
 
-def upper_bound_constant(func, a, b, n_grid=100, refresh_rate=0.):
+
+def upper_bound_constant(func, a, b, n_grid=100, refresh_rate=0.0):
     """
     Computes the constant upper bound using the Brent's algorithm.
 
@@ -33,10 +39,8 @@ def upper_bound_constant(func, a, b, n_grid=100, refresh_rate=0.):
     return BoundBox(t, box_max, cum_sum, b - a)
 
 
-
-
-def upper_bound_grid(func,a,b,n_grid = 100,refresh_rate = 0.):
-    """Compute the upper bound using a grid 
+def upper_bound_grid(func, a, b, n_grid=100, refresh_rate=0.0):
+    """Compute the upper bound using a grid
 
     Args:
         func: the function for which the upper bound is computed
@@ -47,24 +51,26 @@ def upper_bound_grid(func,a,b,n_grid = 100,refresh_rate = 0.):
     Returns:
         - BoundBox: An object containing the upper bound constant information.
     """
-    t = jnp.linspace(a,b,n_grid)
-    step_size = t[1]-t[0]
+    t = jnp.linspace(a, b, n_grid)
+    step_size = t[1] - t[0]
     func_vmap = jax.vmap(jax.value_and_grad(func))
-    values,grads = func_vmap(t)
-    intersection_pos = (values[:-1] - values[1:] + grads[1:]*step_size) / (grads[1:] - grads[:-1])
-    intersection_pos = jnp.nan_to_num(intersection_pos,nan = 0.)
-    intersection_pos = jnp.clip(intersection_pos,0.,step_size)
-    intersection = values[:-1] + grads[:-1]*intersection_pos
-    box_max = jnp.maximum(values[:-1],values[1:])
-    box_max = jnp.maximum(box_max,intersection)
-    box_max = jnp.maximum(box_max,0.)
+    values, grads = func_vmap(t)
+    intersection_pos = (values[:-1] - values[1:] + grads[1:] * step_size) / (
+        grads[1:] - grads[:-1]
+    )
+    intersection_pos = jnp.nan_to_num(intersection_pos, nan=0.0)
+    intersection_pos = jnp.clip(intersection_pos, 0.0, step_size)
+    intersection = values[:-1] + grads[:-1] * intersection_pos
+    box_max = jnp.maximum(values[:-1], values[1:])
+    box_max = jnp.maximum(box_max, intersection)
+    box_max = jnp.maximum(box_max, 0.0)
     box_max += refresh_rate
     cum_sum = jnp.zeros(n_grid)
-    cum_sum = cum_sum.at[1:].set(jnp.cumsum(box_max)*step_size)
-    return BoundBox(t,box_max,cum_sum,step_size)
+    cum_sum = cum_sum.at[1:].set(jnp.cumsum(box_max) * step_size)
+    return BoundBox(t, box_max, cum_sum, step_size)
 
 
-def upper_bound_grid_vect(func,a,b,n_grid = 100):
+def upper_bound_grid_vect(func, a, b, n_grid=100):
     """Compute the upper bound using a grid with the vectorized strategy
 
     Args:
@@ -76,26 +82,29 @@ def upper_bound_grid_vect(func,a,b,n_grid = 100):
     Returns:
         - BoundBox: An object containing the upper bound constant information.
     """
-    t = jnp.linspace(a,b,n_grid)
-    step_size = t[1]-t[0]
-    values,grads = jax.jvp(jax.vmap(func),(t,), (jnp.ones(t.size),))
-    intersection_pos = (values[:-1] - values[1:] + grads[1:]*step_size) / (grads[1:] - grads[:-1])
-    intersection_pos = jnp.nan_to_num(intersection_pos,nan = 0.)
-    intersection_pos = jnp.clip(intersection_pos,0.,step_size)
-    intersection = values[:-1] + grads[:-1]*intersection_pos
-    box_max = jnp.maximum(values[:-1],values[1:])
-    box_max = jnp.maximum(box_max,intersection)
-    box_max = jnp.maximum(box_max,0.)
-    cum_sum = jnp.zeros((n_grid,values.shape[1]))
-    cum_sum = cum_sum.at[1:].set(jnp.cumsum(box_max,axis=0)*step_size)
-    
-    cum_sum = jnp.sum(cum_sum,axis = 1)
-    box_max = jnp.sum(box_max,axis = 1)
-    return BoundBox(t,box_max,cum_sum,step_size)
+    t = jnp.linspace(a, b, n_grid)
+    step_size = t[1] - t[0]
+    values, grads = jax.jvp(jax.vmap(func), (t,), (jnp.ones(t.size),))
+    intersection_pos = (values[:-1] - values[1:] + grads[1:] * step_size) / (
+        grads[1:] - grads[:-1]
+    )
+    intersection_pos = jnp.nan_to_num(intersection_pos, nan=0.0)
+    intersection_pos = jnp.clip(intersection_pos, 0.0, step_size)
+    intersection = values[:-1] + grads[:-1] * intersection_pos
+    box_max = jnp.maximum(values[:-1], values[1:])
+    box_max = jnp.maximum(box_max, intersection)
+    box_max = jnp.maximum(box_max, 0.0)
+    cum_sum = jnp.zeros((n_grid, values.shape[1]))
+    cum_sum = cum_sum.at[1:].set(jnp.cumsum(box_max, axis=0) * step_size)
+
+    cum_sum = jnp.sum(cum_sum, axis=1)
+    box_max = jnp.sum(box_max, axis=1)
+    return BoundBox(t, box_max, cum_sum, step_size)
 
 
-
-def next_event(boundbox,exp_rv):
+def next_event(
+    boundbox: BoundBox, exp_rv: Float[Array, ""]
+) -> tuple[Float[Array, ""], Float[Array, ""]]:
     """
     Calculate the next event time based on the given exponential random variable and the upper bound.
 
@@ -106,8 +115,13 @@ def next_event(boundbox,exp_rv):
     Returns:
         tuple: A tuple containing the next event time (t_prop) and the corresponding upper bound value.
     """
-    
-    index = jnp.searchsorted(boundbox.cum_sum,exp_rv) 
+
+    index = jnp.searchsorted(boundbox.cum_sum, exp_rv)
     # if the index is the last element, meaning that exp_rv > cum_sum[-1], it returns infinity
-    t_prop = boundbox.grid[index-1] + (exp_rv - boundbox.cum_sum[index-1]) / (boundbox.cum_sum[index] - boundbox.cum_sum[index-1]) * boundbox.step_size
-    return t_prop, boundbox.box_max[index-1]
+    t_prop = (
+        boundbox.grid[index - 1]
+        + (exp_rv - boundbox.cum_sum[index - 1])
+        / (boundbox.cum_sum[index] - boundbox.cum_sum[index - 1])
+        * boundbox.step_size
+    )
+    return t_prop, boundbox.box_max[index - 1]

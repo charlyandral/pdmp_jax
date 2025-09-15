@@ -1,7 +1,11 @@
-from typing import Callable, NamedTuple, Tuple
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable, NamedTuple
 
 import jax.numpy as jnp
-from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray
+
+if TYPE_CHECKING:
+    from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray
 
 
 class BoundBox(NamedTuple):
@@ -15,9 +19,9 @@ class BoundBox(NamedTuple):
         step_size (Float[Array, ""]): The step size of the grid.
     """
 
-    grid: Float[Array, "n_grid"]
-    box_max: Float[Array, "n_grid - 1"]
-    cum_sum: Float[Array, "n_grid - 1"]
+    grid: Float[Array, " n_grid"]
+    box_max: Float[Array, " n_grid - 1"]
+    cum_sum: Float[Array, " n_grid - 1"]
     step_size: Float[Array, ""]
 
 
@@ -50,12 +54,12 @@ class PdmpState(NamedTuple):
         hitting_horizon (Array[int, ""]): count of the number of hits of the horizon
     """
 
-    x: Float[Array, "dim"]
-    v: Float[Array, "dim"]
+    x: Float[Array, " dim"]
+    v: Float[Array, " dim"]
     t: Float[Array, ""]
     horizon: Float[Array, ""]
     key: PRNGKeyArray
-    integrator: Callable[[Array, Array, Array], Tuple[Array, Array]]
+    integrator: Callable[[Array, Array, Array], tuple[Array, Array]]
     grad_U: Callable[[Array], Array]
     rate: Callable[[Array, Array, Array], Array]
     velocity_jump: Callable[[Array, Array, PRNGKeyArray], Array]
@@ -91,8 +95,8 @@ class PdmpOutput(NamedTuple):
         hitting_horizon (Int[Array, ""]): The indicator of whether the process hit the horizon at each time point.
     """
 
-    x: Float[Array, "dim"]
-    v: Float[Array, "dim"]
+    x: Float[Array, " dim"]
+    v: Float[Array, " dim"]
     t: Float[Array, ""]
     error_bound: Int[Array, ""]
     error_value_ar: Float[Array, ""]

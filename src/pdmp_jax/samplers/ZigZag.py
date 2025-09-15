@@ -1,12 +1,17 @@
+from __future__ import annotations
 import warnings
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
 from jax.tree_util import Partial as jax_partial
-from jaxtyping import Array, Bool
+
 
 from .pdmp import PDMP
+
+if TYPE_CHECKING:
+    from pdmp_jax.typing import Position, Velocity
+    from jaxtyping import Array, PRNGKeyArray
 
 
 class ZigZag(PDMP):
@@ -45,9 +50,9 @@ class ZigZag(PDMP):
         grad_U: Callable[[Array], Array],
         grid_size: int = 10,
         tmax: float = 2.0,
-        vectorized_bound: Bool = True,
-        signed_bound: Bool = True,
-        adaptive: Bool = True,
+        vectorized_bound: bool = True,
+        signed_bound: bool = True,
+        adaptive: bool = True,
         alpha_minus: float | None = None,
         alpha_plus: float | None = None,
         **kwargs,
@@ -84,7 +89,7 @@ class ZigZag(PDMP):
         )
 
         # initialization of the velocity jump
-        def _velocity_jump_zz(x, v, key):
+        def _velocity_jump_zz(x: Position, v: Velocity, key: PRNGKeyArray) -> Velocity:
             lambda_t = jnp.maximum(0.0, self.grad_U(x) * v)
             proba = lambda_t / jnp.sum(lambda_t)
             m = jax.random.choice(key, jnp.arange(v.shape[0]), p=proba)

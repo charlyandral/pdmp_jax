@@ -1,12 +1,17 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
 from jax.tree_util import Partial as jax_partial
 
-from typing import  Callable
-from jaxtyping import  Array
-
-
 from .pdmp import PDMP
+
+if TYPE_CHECKING:
+    from jaxtyping import PRNGKeyArray
+
+    from pdmp_jax.typing import Position, Velocity
 
 
 class ForwardEventChain(PDMP):
@@ -39,7 +44,7 @@ class ForwardEventChain(PDMP):
         velocity_jump (Callable[[Array, Array, Any], Array]): The velocity jump function.
         state (Any): The state of the ZigZag sampler.
     """
-    
+
     def __init__(
         self,
         dim,
@@ -50,7 +55,7 @@ class ForwardEventChain(PDMP):
         signed_bound=True,
         adaptive=True,
         **kwargs,
-    ):  
+    ):
         # Check if the dimension is greater than 2
         if dim <= 2:
             raise ValueError(
@@ -68,19 +73,23 @@ class ForwardEventChain(PDMP):
         else:
             self.tmax = float(tmax)
             self.adaptive = adaptive
-        self.vectorized_bound = False # vectorized strategy is not used in the forward event chain
+        self.vectorized_bound = (
+            False  # vectorized strategy is not used in the forward event chain
+        )
         self.signed_bound = signed_bound
 
         # define the integrator function
         self.integrator = jax_partial(lambda x, v, t: (x + (v * t), v))
 
-        #initialize the rate
+        # initialize the rate
         self.rate, self.rate_vect, self.signed_rate, self.signed_rate_vect = (
             self._init_bps_rate()
         )
 
         # define the velocity jump function
-        def _velocity_jump_event_chain(x, v, key):
+        def _velocity_jump_event_chain(
+            x: Position, v: Velocity, key: PRNGKeyArray
+        ) -> Velocity:
             subkey1, subkey2, subkey3 = jax.random.split(key, 3)
             dim = x.shape[0]
             u = jax.random.uniform(subkey1)
@@ -90,7 +99,7 @@ class ForwardEventChain(PDMP):
             v_par = (v @ grad_U_x) * grad_U_x
             v_ortho = v - v_par
 
-            def _refresh_ortho(key):
+            def _refresh_ortho(key: PRNGKeyArray) -> Velocity:
                 g = jax.random.normal(key, shape=(2, dim))
                 g1 = g[0]
                 g2 = g[1]

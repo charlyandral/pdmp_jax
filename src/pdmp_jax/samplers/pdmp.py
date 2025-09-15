@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import abc
-from typing import Callable, Tuple
+from typing import TYPE_CHECKING, Callable
 
 import jax
 import jax.numpy as jnp
@@ -9,22 +11,28 @@ import numpy as np
 import seaborn as sns
 from jax.tree_util import Partial as jax_partial
 from jax_tqdm import scan_tqdm
-from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray, TypeAlias
 
-from pdmp_jax.namedtuples import BoundBox
+from pdmp_jax.namedtuples import PdmpState
+from pdmp_jax.sampling_loop import one_step, output_state
+from pdmp_jax.upper_bound import (
+    upper_bound_constant,
+    upper_bound_grid,
+    upper_bound_grid_vect,
+)
 
-from ..namedtuples import PdmpOutput, PdmpState
-from ..sampling_loop import one_step, output_state
-from ..upper_bound import upper_bound_constant, upper_bound_grid, upper_bound_grid_vect
+if TYPE_CHECKING:
+    from jaxtyping import Array, Float
 
-Position: TypeAlias = Float[Array, "dim"]
-Velocity: TypeAlias = Float[Array, "dim"]
-Time: TypeAlias = Float[Array, ""]
-RateIntensity: TypeAlias = Float[Array, ""]
-
-Integrator: TypeAlias = Callable[[Position, Velocity, Time], Tuple[Position, Velocity]]
-RateFunction: TypeAlias = Callable[[Position, Velocity, Time], RateIntensity]
-JumpFunction: TypeAlias = Callable[[Position, Velocity, PRNGKeyArray], Velocity]
+    from pdmp_jax.namedtuples import BoundBox, PdmpOutput
+    from pdmp_jax.typing import (
+        Integrator,
+        JumpFunction,
+        Position,
+        RateFunction,
+        RateIntensity,
+        Time,
+        Velocity,
+    )
 
 
 class PDMP(abc.ABC):
@@ -56,33 +64,33 @@ class PDMP(abc.ABC):
     """
 
     @abc.abstractmethod
-    def __init__(self):
-        self.dim: Int
-        self.refresh_rate: Float
+    def __init__(self) -> None:
+        self.dim: int
+        self.refresh_rate: float
         self.grad_U: Callable[[Array], Array]
-        self.grid_size: Int
-        self.tmax: Float
+        self.grid_size: int
+        self.tmax: float
 
-        self.vectorized_bound: Bool
-        self.signed_bound: Bool
-        self.adaptive: Bool
+        self.vectorized_bound: bool
+        self.signed_bound: bool
+        self.adaptive: bool
 
         self.integrator: Integrator
         self.velocity_jump: JumpFunction
         self.state: PdmpState | None
         self.rate: RateFunction
-        self.signed_rate: RateFunction
-        self.signed_rate_vect: RateFunction
-        self.rate_vect: RateFunction
-        self.alpha_minus: Float[Array, ""] | None
-        self.alpha_plus: Float[Array, ""] | None
+        self.signed_rate: RateFunction | None
+        self.signed_rate_vect: RateFunction | None
+        self.rate_vect: RateFunction | None
+        self.alpha_minus: float | None
+        self.alpha_plus: float | None
 
     def init_state(
         self,
-        xinit: Float[Array, "dim"],
-        vinit: Float[Array, "dim"],
+        xinit: Float[Array, " dim"],
+        vinit: Float[Array, " dim"],
         seed: int,
-    ):
+    ) -> PdmpState:
         """
         Initializes the state of the PDMP sampler.
 
@@ -111,43 +119,52 @@ class PDMP(abc.ABC):
         # if the grid size is 0, we use the constant upper bound strategy using the Brent's algorithm
         if self.grid_size == 0:
 
-            def upper_bound_func(x, v, horizon) -> BoundBox:
+            def upper_bound_func(
+                x: Position, v: Velocity, horizon: Float[Array, ""]
+            ) -> BoundBox:
                 func = jax_partial(lambda t: self.rate(x, v, t))
                 return upper_bound_constant(func, 0.0, horizon)
 
-        elif not self.vectorized_bound:
+        elif not self.vectorized_bound and rate:
 
-            def upper_bound_func(x, v, horizon) -> BoundBox:
+            def upper_bound_func(
+                x: Position, v: Velocity, horizon: Float[Array, ""]
+            ) -> BoundBox:
                 func = jax_partial(lambda t: rate(x, v, t))
                 return upper_bound_grid(
                     func, 0.0, horizon, self.grid_size, refresh_rate
                 )
 
-        else:
+        elif rate_vect is not None:
 
-            def upper_bound_func(x, v, horizon):
+            def upper_bound_func(
+                x: Position, v: Velocity, horizon: Float[Array, ""]
+            ) -> BoundBox:
+                assert rate_vect is not None
                 func = jax_partial(lambda t: rate_vect(x, v, t))
                 return upper_bound_grid_vect(func, 0.0, horizon, self.grid_size)
+        else:
+            raise NotImplementedError
 
         upper_bound_func = jax_partial(upper_bound_func)
-        boundox = upper_bound_func(xinit, vinit, self.tmax)
+        boundbox = upper_bound_func(xinit, vinit, self.tmax)
         state = PdmpState(
             xinit,
             vinit,
             jnp.array(0.0),
-            self.tmax,
-            key,  # type: ignore
+            jnp.array(self.tmax),
+            key,
             self.integrator,
             self.grad_U,
             self.rate,
             self.velocity_jump,
             upper_bound_func,
-            upper_bound=boundox,
-            adaptive=self.adaptive,
-            alpha_minus=self.alpha_minus
+            upper_bound=boundbox,
+            adaptive=jnp.array(self.adaptive),
+            alpha_minus=jnp.array(self.alpha_minus)
             if self.alpha_minus is not None
             else PdmpState._field_defaults["alpha_minus"],
-            alpha_plus=self.alpha_plus
+            alpha_plus=jnp.array(self.alpha_plus)
             if self.alpha_plus is not None
             else PdmpState._field_defaults["alpha_plus"],
         )
@@ -157,10 +174,11 @@ class PDMP(abc.ABC):
     def sample_skeleton(
         self,
         n_sk: int,
-        xinit: Float[Array, "dim"],
-        vinit: Float[Array, "dim"],
+        xinit: Float[Array, " dim"],
+        vinit: Float[Array, " dim"],
         seed: int,
-        verbose=True,
+        *,
+        verbose: bool = True,
     ) -> PdmpOutput:
         """
         Samples the skeleton of the PDMP model.
@@ -176,7 +194,7 @@ class PDMP(abc.ABC):
         - output: The output state of the sampling process.
         """
 
-        def one_step_inside(state, _):
+        def one_step_inside(state: PdmpState, _) -> tuple[PdmpState, PdmpOutput]:
             state = one_step(state)
             output = output_state(state)
             return state, output
@@ -191,12 +209,7 @@ class PDMP(abc.ABC):
         self.state = state
         # concatenate the initial output with the output
 
-        def insert(output, initial_output):
-            return jax.tree.map(
-                lambda x, y: jnp.insert(x, 0, y, axis=0), output, initial_output
-            )
-
-        def prepend(output, initial_output):
+        def prepend(output: PdmpOutput, initial_output: PdmpOutput) -> PdmpOutput:
             return jax.tree.map(
                 lambda x, y: jnp.concatenate(
                     (jnp.reshape(jnp.asarray(y, dtype=x.dtype), (1, *x.shape[1:])), x),
@@ -231,8 +244,8 @@ class PDMP(abc.ABC):
         self,
         N_sk: int,
         N_samples: int,
-        xinit: Float[Array, "dim"],
-        vinit: Float[Array, "dim"],
+        xinit: Float[Array, " dim"],
+        vinit: Float[Array, " dim"],
         seed: int,
         verbose: bool = True,
     ) -> Float[Array, "N_samples dim"]:
@@ -250,10 +263,10 @@ class PDMP(abc.ABC):
         Returns:
             jnp.ndarray: Array of samples generated from the PDMP model.
         """
-        output = self.sample_skeleton(N_sk, xinit, vinit, seed, verbose)
+        output = self.sample_skeleton(N_sk, xinit, vinit, seed, verbose=verbose)
         return self.sample_from_skeleton(N_samples, output)
 
-    def _init_zz_rate(self):
+    def _init_zz_rate(self) -> tuple[RateFunction, RateFunction, None, RateFunction]:
         """
         Initializes the ZZ rate functions.
 
@@ -264,17 +277,17 @@ class PDMP(abc.ABC):
         - A partial function `_signed_rate_vect` that calculates the vectorized signed rate given the current state.
         """
 
-        def _global_rate(x0, v0, t):
+        def _global_rate(x0: Position, v0: Velocity, t: Time) -> RateIntensity:
             xt, vt = self.integrator(x0, v0, t)
             return jnp.sum(jnp.maximum(0.0, self.grad_U(xt) * vt))
 
-        def _global_rate_vect(x0, v0, t):
+        def _global_rate_vect(x0: Position, v0: Velocity, t: Time) -> RateIntensity:
             xt, vt = self.integrator(x0, v0, t)
             return jnp.maximum(0.0, self.grad_U(xt) * vt)
 
         _signe_rate = None
 
-        def _signed_rate_vect(x0, v0, t):
+        def _signed_rate_vect(x0: Position, v0: Velocity, t: Time) -> RateIntensity:
             xt, vt = self.integrator(x0, v0, t)
             return self.grad_U(xt) * vt
 
@@ -285,7 +298,7 @@ class PDMP(abc.ABC):
             jax_partial(_signed_rate_vect),
         )
 
-    def _init_bps_rate(self):
+    def _init_bps_rate(self) -> tuple[RateFunction, None, RateFunction, None]:
         """
         Initializes the BPS rate functions.
 
@@ -297,13 +310,13 @@ class PDMP(abc.ABC):
             - `_signed_rate_vect`: Vectorized version of `_signed_rate` (currently set to None).
         """
 
-        def _global_rate(x0, v0, t):
+        def _global_rate(x0: Position, v0: Velocity, t: Time) -> RateIntensity:
             xt, vt = self.integrator(x0, v0, t)
             return jnp.maximum(0.0, self.grad_U(xt) @ vt) + self.refresh_rate
 
         _global_rate_vect = None
 
-        def _signed_rate(x0, v0, t):
+        def _signed_rate(x0: Position, v0: Velocity, t: Time) -> RateIntensity:
             xt, vt = self.integrator(x0, v0, t)
             return self.grad_U(xt) @ vt + self.refresh_rate
 
@@ -317,7 +330,7 @@ class PDMP(abc.ABC):
         )
 
 
-def plot(output: PdmpOutput):
+def plot(output: PdmpOutput) -> None:
     """
     Plots various histograms based on the given PdmpOutput object. The histograms include:
     - Time between events histogram (top left)

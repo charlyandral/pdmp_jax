@@ -1,9 +1,17 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
-from jax.tree_util import Partial as jax_partial
 
-from .namedtuples import PdmpOutput, PdmpState
+from .namedtuples import PdmpOutput
 from .upper_bound import next_event
+
+if TYPE_CHECKING:
+    from jaxtyping import Array, Bool
+
+    from .namedtuples import PdmpState
 
 
 def output_state(state: PdmpState) -> PdmpOutput:
@@ -21,14 +29,14 @@ def output_state(state: PdmpState) -> PdmpOutput:
     return PdmpOutput(**{key: values[key] for key in keys})
 
 
-def compare_pdmp_states(state1, state2):
+def compare_pdmp_states(state1: PdmpState, state2: PdmpState) -> None:
     # Convert namedtuples to dictionaries
     dict1 = state1._asdict()
     dict2 = state2._asdict()
 
     # Find and return differences
     for key, value in dict1.items():
-        if type(value) == type(state1.integrator):
+        if type(value) is type(state1.integrator):
             continue
         try:
             if value != dict2[key]:
@@ -42,10 +50,10 @@ def compare_pdmp_states(state1, state2):
 
 
 def move_before_horizon(state: PdmpState) -> PdmpState:
-    accept = False
+    accept = jnp.array(False)
     state = state._replace(accept=accept)
 
-    def cond(state):
+    def cond(state: PdmpState) -> Bool[Array, ""]:
         return jnp.logical_and(state.tp < state.horizon, jnp.logical_not(state.accept))
 
     state = jax.lax.while_loop(cond, inner_while, state)
@@ -101,10 +109,10 @@ def if_accept(state: PdmpState) -> PdmpState:
     key, subkey = jax.random.split(state.key)
     v = state.velocity_jump(x, v, subkey)  # type: ignore
     t = state.t + state.tp + state.ts
-    indicator = True
-    ts = 0.0
-    tp = 0.0
-    accept = True
+    indicator = jnp.array(True)
+    ts = jnp.array(0.0)
+    tp = jnp.array(0.0)
+    accept = jnp.array(True)
     state = state._replace(
         x=x,
         v=v,
@@ -121,6 +129,7 @@ def if_accept(state: PdmpState) -> PdmpState:
 def if_not_accept(state: PdmpState) -> PdmpState:
     key, subkey = jax.random.split(state.key)
     exp_rv = state.exp_rv + jax.random.exponential(subkey)
+    assert state.upper_bound
     tp, lambda_bar = next_event(state.upper_bound, exp_rv)
     # problem here with tp if x64 is used before importing the package
     horizon = jnp.where(
@@ -165,8 +174,11 @@ def one_step(state: PdmpState) -> PdmpState:
         return jnp.logical_not(state.indicator)
 
     state = state._replace(
-        error_bound=0, rejected=0, hitting_horizon=0, error_value_ar=jnp.zeros(5)
+        error_bound=jnp.array(0),
+        rejected=jnp.array(0),
+        hitting_horizon=jnp.array(0),
+        error_value_ar=jnp.zeros(5),
     )
     state = jax.lax.while_loop(cond_fun, one_step_while, state)
-    state = state._replace(indicator=False)
+    state = state._replace(indicator=jnp.array(False))
     return state

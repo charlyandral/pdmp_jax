@@ -1,31 +1,35 @@
-from typing import Callable, NamedTuple
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable, NamedTuple
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import Float, Int
+
+if TYPE_CHECKING:
+    from jaxtyping import Array, Bool, Float, Int
 
 
 class BrentState(NamedTuple):
-    func: Callable
-    xatol: Float
-    maxfun: Int
-    sqrt_eps: Float
-    golden_mean: Float
-    a: Float
-    b: Float
-    fulc: Float
-    nfc: Float
-    xf: Float
-    e: Float
-    rat: Float
-    fx: Float
-    num: Int
-    fnfc: Float
-    ffulc: Float
-    xm: Float
-    tol1: Float
-    tol2: Float
-    golden: Int
+    func: Callable[[Float[Array, ""]], Float[Array, ""]]
+    xatol: Float[Array, ""]
+    maxfun: Int[Array, ""]
+    sqrt_eps: Float[Array, ""]
+    golden_mean: Float[Array, ""]
+    a: Float[Array, ""]
+    b: Float[Array, ""]
+    fulc: Float[Array, ""]
+    nfc: Float[Array, ""]
+    xf: Float[Array, ""]
+    e: Float[Array, ""]
+    rat: Float[Array, ""]
+    fx: Float[Array, ""]
+    num: Int[Array, ""]
+    fnfc: Float[Array, ""]
+    ffulc: Float[Array, ""]
+    xm: Float[Array, ""]
+    tol1: Float[Array, ""]
+    tol2: Float[Array, ""]
+    golden: Int[Array, ""]
 
 
 def minimize_scalar_bounded_jax(func, bounds, xatol=1e-7, maxiter=500):
@@ -38,7 +42,7 @@ def minimize_scalar_bounded_jax(func, bounds, xatol=1e-7, maxiter=500):
         maxiter (int, optional): maximum_number of iterations. Defaults to 500.
     """
 
-    def cond_loop(val: BrentState):
+    def cond_loop(val: BrentState) -> Bool[Array, ""]:
         condi = jnp.bool_(jnp.abs(val.xf - val.xm) > (val.tol2 - 0.5 * (val.b - val.a)))
         return condi & (val.num < val.maxfun)
 
@@ -85,21 +89,21 @@ def minimize_scalar_bounded_jax(func, bounds, xatol=1e-7, maxiter=500):
             )
             return jax.lax.cond(cond_ok, fun_true, fun_false, s)
 
-        state2 = state._replace(golden=jnp.asarray(1))
+        state2: BrentState = state._replace(golden=jnp.asarray(1))
 
         state2 = jax.lax.cond(
             jnp.abs(state2.e) > state2.tol1, inner_if_1, lambda s: s, state2
         )
 
         # If parabola rejected (golden==1), set golden-section step
-        def _golden_true(s: BrentState):
+        def _golden_true(s: BrentState) -> BrentState:
             step = jnp.where(s.xf >= s.xm, s.a - s.xf, s.b - s.xf)
             return s._replace(
                 e=step,
                 rat=s.golden_mean * step,
             )
 
-        def _golden_false(s: BrentState):
+        def _golden_false(s: BrentState) -> BrentState:
             return s
 
         state2 = jax.lax.cond(state2.golden == 1, _golden_true, _golden_false, state2)
@@ -139,7 +143,9 @@ def minimize_scalar_bounded_jax(func, bounds, xatol=1e-7, maxiter=500):
                 ffulc=jnp.where(cond1, s.fnfc, jnp.where(cond2, fu, s.ffulc)),
             )
 
-        state3 = jax.lax.cond(fu <= state2.fx, inner_if_2T, inner_if_2F, state2)
+        state3: BrentState = jax.lax.cond(
+            fu <= state2.fx, inner_if_2T, inner_if_2F, state2
+        )
 
         # Update mid and tolerances
         xm = 0.5 * (state3.a + state3.b)
@@ -170,7 +176,7 @@ def minimize_scalar_bounded_jax(func, bounds, xatol=1e-7, maxiter=500):
     tol2 = 2.0 * tol1
 
     fval = fx
-    golden = 0
+    golden = jnp.array(0)
     val = BrentState(
         func,
         xatol,
