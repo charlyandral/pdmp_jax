@@ -1,17 +1,25 @@
 from __future__ import annotations
+
 import warnings
-from typing import Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, ParamSpec, TypeVar
 
 import jax
 import jax.numpy as jnp
-from jax.tree_util import Partial as jax_partial
 
-
+# from jax.tree_util import Partial as jax_partial
 from .pdmp import PDMP
 
 if TYPE_CHECKING:
-    from pdmp_jax.typing import Position, Velocity
     from jaxtyping import Array, PRNGKeyArray
+
+    from pdmp_jax.typing import Position, Velocity
+
+P = ParamSpec("P")
+S = TypeVar("S")
+
+
+def jax_partial(func: Callable[P, S]) -> Callable[P, S]:
+    return jax.tree_util.Partial(func)  # type: ignore[no-untyped-call]
 
 
 class ZigZag(PDMP):
@@ -55,8 +63,8 @@ class ZigZag(PDMP):
         adaptive: bool = True,
         alpha_minus: float | None = None,
         alpha_plus: float | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         self.dim = dim
         self.refresh_rate = 0.0
         self.grad_U = jax_partial(grad_U)
