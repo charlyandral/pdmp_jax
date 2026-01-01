@@ -55,14 +55,20 @@ for ratio, magnitude in product(ratios_alphas, magnitudes_alphas):
 plt.figure(figsize=(12, 8))
 # Alternative approach using named colormaps
 cmaps = {0.2: plt.get_cmap("Reds"), 1: plt.get_cmap("Greens"), 5: plt.get_cmap("Blues")}
-
+style_map_magnitude = {0.0025: "solid", 0.01: "dashdot", 0.04: "dashed"}
 for (ratio, magnitude), horizon in dico.items():
     hue = ratios_alphas.index(ratio) / len(ratios_alphas) * 0.8
 
     color = cmaps[ratio](
         0.3 + 0.7 * (magnitudes_alphas.index(magnitude) / len(magnitudes_alphas))
     )
-    plt.plot(horizon, label=f"R: {ratio}, M: {magnitude}", color=color, lw=1.5)
+    plt.plot(
+        horizon,
+        label=f"R: {ratio}, M: {magnitude}",
+        color=color,
+        lw=1.5,
+        ls=style_map_magnitude[magnitude],
+    )
 
 
 plt.xlabel("Step")
@@ -71,3 +77,5 @@ plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", title="Parameters")
 plt.grid(alpha=0.3)
 plt.tight_layout()
 plt.show()
+
+# %%

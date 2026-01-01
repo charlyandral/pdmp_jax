@@ -27,42 +27,16 @@ import pdmp_jax as pdmp
 if TYPE_CHECKING:
     from jaxtyping import Array
 
-dim = 300
+dim = 3
 
 
 def U(x: Array) -> Array:
+    # return x.T @ x / 2 #uncomment this for gaussian
     mean_x2 = x[0] ** 2 - 1
     return -(-(x[0] ** 2) + -((x[1] - mean_x2) ** 2) - jnp.sum((x[2:]) ** 2)) / 2
 
 
-def U_2(x: Array, y: Array) -> Array:
-    arr = jnp.zeros(dim)
-    arr = arr.at[0].set(x)
-    arr = arr.at[1].set(y)
-    return U(arr)
-
-
-# %%
 grad_U = jax.grad(U)
-seed = 9
-xinit = -jnp.zeros((dim,)) + 1
-vinit = jnp.ones((dim,))
-grid_size = 3
-tmax = 2.5
-sampler = pdmp.ForwardEventChain(
-    dim, grad_U, grid_size, tmax, vectorized_bound=False, signed_bound=True
-)
-out = sampler.sample_skeleton(1000000, xinit, vinit, seed, verbose=True)
-sample = sampler.sample_from_skeleton(1000000, out)
-pdmp.plot(out)
-
-ar_reject = jnp.concatenate(out.error_value_ar)
-# drop zeros
-ar_reject = ar_reject[ar_reject != 0]
-sns.histplot(ar_reject)  # type: ignore
-sns.jointplot(x=sample[:, 0], y=sample[:, 1])
-# plot ess
-plt.show()
 
 
 # %%
@@ -70,20 +44,17 @@ def loop(
     grid_size: int,
     seed: int,
     tmax: float,
-    signed: bool,
     ratio_alphas: float,
     magnitude_alphas: float,
 ):
     alpha_minus, alpha_plus = alpha_minus_plus_from_ratio_and_magnitude(
         ratio_alphas, magnitude_alphas
     )
-    sampler = pdmp.ForwardEventChain(
+    sampler = pdmp.BouncyParticle(
         dim,
         grad_U,
         grid_size,
         tmax,
-        vectorized_bound=False,
-        signed_bound=signed,
         alpha_minus=alpha_minus,
         alpha_plus=alpha_plus,
     )
@@ -96,7 +67,6 @@ def loop(
     dico = out._asdict()
     dico["grid_size"] = grid_size
     dico["tmax"] = tmax
-    dico["signed"] = signed
     dico["ratio_alphas"] = ratio_alphas
     dico["magnitude_alphas"] = magnitude_alphas
     dico["time"] = end - begin
@@ -110,17 +80,15 @@ def loop(
     return dico
 
 
-seeds = list(range(10))
+n_rep = 10
+gen = np.random.default_rng(1)
+seeds = gen.integers(0, 10000, n_rep)
 grid_sizes = [0]
 tmaxs = [0.0]
-signeds = [True]
 ratios_alphas = [0.1, 0.2, 0.5, 1, 2, 5, 10]
 magnitudes_alphas = [0.01]
-iterable2 = list(
-    product(grid_sizes, seeds, tmaxs, signeds, ratios_alphas, magnitudes_alphas)
-)
+iterable2 = list(product(grid_sizes, seeds, tmaxs, ratios_alphas, magnitudes_alphas))
 iterable = iterable2
-gen = np.random.default_rng()
 gen.shuffle(iterable)  # type: ignore
 print(len(iterable))
 results = Parallel(n_jobs=8, backend="threading", verbose=0)(
