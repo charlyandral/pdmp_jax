@@ -77,6 +77,7 @@ vinit = jax.random.normal(seed2, shape=(2,))
 vinit = vinit / jnp.linalg.norm(vinit)
 # %%
 out = sampler.sample_skeleton(1000000, xinit, vinit, seed, verbose=True)
+
 # %%
 sample = sampler.sample_from_skeleton(100000, out)
 pdmp.plot(out)
@@ -113,7 +114,7 @@ def loop(grid_size, seed, tmax) -> dict[str, Any]:
 grid_sizes = [0, 5, 10, 20, 50, 100]
 # grid_sizes = [5, 10, 20, 50, 100]
 n_seed = 10
-seeds = np.arange(n_seed)
+seeds = list(range(n_seed))
 tmaxs = [0.0, 0.01, 0.1, 1.0]
 # tmaxs = [0.0]
 # vects_signeds = [(False,False),(True,False),(True,True)]
