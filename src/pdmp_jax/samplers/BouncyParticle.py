@@ -53,6 +53,8 @@ class BouncyParticle(PDMP):
         refresh_rate: float = 0.1,
         signed_bound: bool = True,
         adaptive: bool = True,
+        alpha_minus: float | None = None,
+        alpha_plus: float | None = None,
         **kwargs,
     ) -> None:
         self.dim = dim
@@ -100,3 +102,6 @@ class BouncyParticle(PDMP):
 
         self.velocity_jump = jax_partial(_velocity_jump)
         self.state = None
+
+        self.alpha_minus = alpha_minus
+        self.alpha_plus = alpha_plus

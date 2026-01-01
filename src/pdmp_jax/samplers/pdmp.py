@@ -194,12 +194,12 @@ class PDMP(abc.ABC):
         - output: The output state of the sampling process.
         """
 
-        def one_step_inside(state: PdmpState, _) -> tuple[PdmpState, PdmpOutput]:
+        def _one_step_inside(state: PdmpState, _) -> tuple[PdmpState, PdmpOutput]:
             state = one_step(state)
             output = output_state(state)
             return state, output
 
-        one_step_inside = jax.jit(one_step_inside)
+        one_step_inside = jax.jit(_one_step_inside)
         if verbose:
             one_step_inside = scan_tqdm(n_sk)(one_step_inside)  # type: ignore
 

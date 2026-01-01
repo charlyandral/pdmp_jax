@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import jax
 import jax.numpy as jnp
@@ -9,7 +9,7 @@ from jax.tree_util import Partial as jax_partial
 from .pdmp import PDMP
 
 if TYPE_CHECKING:
-    from jaxtyping import PRNGKeyArray
+    from jaxtyping import Array, PRNGKeyArray
 
     from pdmp_jax.typing import Position, Velocity
 
@@ -47,13 +47,15 @@ class ForwardEventChain(PDMP):
 
     def __init__(
         self,
-        dim,
-        grad_U,
-        grid_size=10,
-        tmax=2.0,
-        refresh_ortho=0.1,
-        signed_bound=True,
-        adaptive=True,
+        dim: int,
+        grad_U: Callable[[Array], Array],
+        grid_size: int = 10,
+        tmax: float = 2.0,
+        refresh_ortho: float = 0.1,
+        signed_bound: bool = True,
+        adaptive: bool = True,
+        alpha_minus: float | None = None,
+        alpha_plus: float | None = None,
         **kwargs,
     ):
         # Check if the dimension is greater than 2
@@ -128,3 +130,6 @@ class ForwardEventChain(PDMP):
 
         self.velocity_jump = jax_partial(_velocity_jump_event_chain)
         self.state = None
+
+        self.alpha_minus = alpha_minus
+        self.alpha_plus = alpha_plus

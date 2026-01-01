@@ -54,6 +54,8 @@ class Boomerang(PDMP):
         refresh_rate=0.1,
         signed_bound=True,
         adaptive=True,
+        alpha_minus: float | None = None,
+        alpha_plus: float | None = None,
         **kwargs,
     ):
         self.dim = dim
@@ -112,3 +114,6 @@ class Boomerang(PDMP):
 
         self.velocity_jump = jax_partial(_velocity_jump)
         self.state = None
+
+        self.alpha_minus = alpha_minus
+        self.alpha_plus = alpha_plus

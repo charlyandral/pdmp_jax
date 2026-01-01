@@ -32,7 +32,9 @@ class BrentState(NamedTuple):
     golden: Int[Array, ""]
 
 
-def minimize_scalar_bounded_jax(func, bounds, xatol=1e-7, maxiter=500):
+def minimize_scalar_bounded_jax(
+    func, bounds, xatol=1e-7, maxiter=500
+) -> dict[str, Array]:
     """Jax implementation of minimize_scalar_bounded from scipy.optimize.
 
     Args:
