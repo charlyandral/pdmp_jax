@@ -23,6 +23,23 @@ def test_quadratic_jitted():
     assert bool(res["success"]) is True
 
 
+def test_early_stop_bound():
+    from pdmp_jax.upper_bound import upper_bound_constant_early_stop
+
+    # increasing rate: max at the right boundary, found in 2 evaluations
+    box = upper_bound_constant_early_stop(jax_partial(lambda t: 1.0 + 3.0 * t), 0.0, 2.0)
+    assert jnp.allclose(box.box_max[0], 7.0)
+    assert int(box.evals) == 2
+    # decreasing rate: max at 0
+    box = upper_bound_constant_early_stop(jax_partial(lambda t: jnp.exp(-t)), 0.0, 2.0)
+    assert jnp.allclose(box.box_max[0], 1.0)
+    assert int(box.evals) == 2
+    # interior maximum: falls back to the capped Brent search
+    box = upper_bound_constant_early_stop(jax_partial(lambda t: jnp.sin(t)), 0.0, 3.0)
+    assert box.box_max[0] >= 0.98
+    assert int(box.evals) <= 10
+
+
 def test_boundary_minimum_no_stall():
     # f(t) = -t has its minimum on the boundary; scipy's fminbound converges
     # there in ~30 evaluations and so should the port (up to FMA/rounding

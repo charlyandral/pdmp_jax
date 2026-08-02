@@ -25,6 +25,7 @@ class BouncyParticle(PDMP):
         refresh_rate (float, optional): The refresh rate of the process. Defaults to 0.1.
         signed_bound (bool, optional): Whether to use signed bound strategy. Defaults to True.
         adaptive (bool, optional): Whether to use adaptive tmax Defaults to True.
+        early_stop_bound (bool, optional): With grid_size=0, use the Corbella-style early-stopping optimisation instead of a full Brent search. Defaults to False.
         **kwargs: Additional keyword arguments.
     Attributes:
         dim (int): The dimension of the space.
@@ -55,6 +56,7 @@ class BouncyParticle(PDMP):
         adaptive: bool = True,
         alpha_minus: float | None = None,
         alpha_plus: float | None = None,
+        early_stop_bound: bool = False,
         **kwargs,
     ) -> None:
         self.dim = dim
@@ -105,3 +107,4 @@ class BouncyParticle(PDMP):
 
         self.alpha_minus = alpha_minus
         self.alpha_plus = alpha_plus
+        self.early_stop_bound = early_stop_bound

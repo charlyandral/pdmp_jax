@@ -39,6 +39,47 @@ def upper_bound_constant(func, a, b, n_grid=100, refresh_rate=0.0):
     return BoundBox(t, box_max, cum_sum, b - a, bound["evals"])
 
 
+def upper_bound_constant_early_stop(func, a, b, n_grid=100, refresh_rate=0.0):
+    """
+    Constant upper bound with the early-stopping strategy of the automatic
+    Zig-Zag (Corbella et al. 2022): run a single Brent iteration, then take the
+    boundary value if the rate is larger there than at the Brent iterate (the
+    typical monotone case, ~2 evaluations); only fall back to a Brent search
+    (capped at 10 iterations) for interior maxima. `evals` follows the same
+    accounting as the original implementation used for the paper figures.
+
+    Parameters and return value are the same as `upper_bound_constant`.
+    """
+    func_min = jax_partial(lambda t: -func(t))
+    res = minimize_scalar_bounded_jax(func_min, bounds=(a, b), maxiter=1)
+    lambda_candidate = -res["min"]
+    lambda_lower = func(jnp.asarray(a))
+    lambda_upper = func(jnp.asarray(b))
+
+    def fallback(_):
+        res_long = minimize_scalar_bounded_jax(func_min, bounds=(a, b), maxiter=10)
+        return -res_long["min"], res_long["evals"]
+
+    box_max, evals = jax.lax.cond(
+        lambda_lower > lambda_candidate,
+        lambda _: (lambda_lower, res["evals"] + 1),
+        lambda _: jax.lax.cond(
+            lambda_upper > lambda_candidate,
+            lambda _: (lambda_upper, res["evals"] + 1),
+            fallback,
+            None,
+        ),
+        None,
+    )
+    t = jnp.linspace(a, b, 2)
+    box_max = jnp.atleast_1d(box_max)
+    box_max += refresh_rate
+    cum_sum = jnp.zeros(2)
+    cum_sum = cum_sum.at[1:].set(box_max * (b - a))
+
+    return BoundBox(t, box_max, cum_sum, b - a, evals)
+
+
 def upper_bound_grid(func, a, b, n_grid=100, refresh_rate=0.0):
     """Compute the upper bound using a grid
 

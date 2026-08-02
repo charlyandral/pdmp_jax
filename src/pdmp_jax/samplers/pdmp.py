@@ -16,6 +16,7 @@ from pdmp_jax.namedtuples import PdmpState
 from pdmp_jax.sampling_loop import one_step, output_state
 from pdmp_jax.upper_bound import (
     upper_bound_constant,
+    upper_bound_constant_early_stop,
     upper_bound_grid,
     upper_bound_grid_vect,
 )
@@ -84,6 +85,7 @@ class PDMP(abc.ABC):
         self.rate_vect: RateFunction | None
         self.alpha_minus: float | None
         self.alpha_plus: float | None
+        self.early_stop_bound: bool
 
     def init_state(
         self,
@@ -118,12 +120,17 @@ class PDMP(abc.ABC):
             refresh_rate = 0.0
         # if the grid size is 0, we use the constant upper bound strategy using the Brent's algorithm
         if self.grid_size == 0:
+            constant_bound = (
+                upper_bound_constant_early_stop
+                if getattr(self, "early_stop_bound", False)
+                else upper_bound_constant
+            )
 
             def upper_bound_func(
                 x: Position, v: Velocity, horizon: Float[Array, ""]
             ) -> BoundBox:
                 func = jax_partial(lambda t: self.rate(x, v, t))
-                return upper_bound_constant(func, 0.0, horizon)
+                return constant_bound(func, 0.0, horizon)
 
         elif not self.vectorized_bound and rate:
 
