@@ -36,7 +36,7 @@ def upper_bound_constant(func, a, b, n_grid=100, refresh_rate=0.0):
     cum_sum = jnp.zeros(2)
     cum_sum = cum_sum.at[1:].set(box_max * (b - a))
 
-    return BoundBox(t, box_max, cum_sum, b - a)
+    return BoundBox(t, box_max, cum_sum, b - a, bound["evals"])
 
 
 def upper_bound_grid(func, a, b, n_grid=100, refresh_rate=0.0):
@@ -67,7 +67,7 @@ def upper_bound_grid(func, a, b, n_grid=100, refresh_rate=0.0):
     box_max += refresh_rate
     cum_sum = jnp.zeros(n_grid)
     cum_sum = cum_sum.at[1:].set(jnp.cumsum(box_max) * step_size)
-    return BoundBox(t, box_max, cum_sum, step_size)
+    return BoundBox(t, box_max, cum_sum, step_size, jnp.asarray(n_grid))
 
 
 def upper_bound_grid_vect(func, a, b, n_grid=100):
@@ -99,7 +99,7 @@ def upper_bound_grid_vect(func, a, b, n_grid=100):
 
     cum_sum = jnp.sum(cum_sum, axis=1)
     box_max = jnp.sum(box_max, axis=1)
-    return BoundBox(t, box_max, cum_sum, step_size)
+    return BoundBox(t, box_max, cum_sum, step_size, jnp.asarray(n_grid))
 
 
 def next_event(

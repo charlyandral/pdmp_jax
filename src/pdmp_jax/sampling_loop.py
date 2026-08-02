@@ -75,6 +75,7 @@ def error_acceptance(state: PdmpState) -> PdmpState:
         lambda_bar=lambda_bar,
         error_bound=state.error_bound + 1,
         error_value_ar=state.error_value_ar.at[state.error_bound % 5].set(state.ar),
+        bound_evals=state.bound_evals + upper_bound.evals,
     )
     return state
 
@@ -89,18 +90,18 @@ def ok_acceptance(state: PdmpState) -> PdmpState:
     return state
 
 
+def move_to_horizon2(state: PdmpState) -> PdmpState:
+    ts = state.ts + state.horizon
+    xi, vi = state.integrator(state.x, state.v, state.horizon)
+    state = state._replace(x=xi, v=vi, ts=ts, hitting_horizon=state.hitting_horizon + 1)
+    return state
+
+
 def inner_while(state: PdmpState) -> PdmpState:
     lambda_t = state.rate(state.x, state.v, state.tp)
     ar = lambda_t / state.lambda_bar
     state = state._replace(lambda_t=lambda_t, ar=ar)
     state = jax.lax.cond(ar > 1.0, error_acceptance, ok_acceptance, state)
-    return state
-
-
-def move_to_horizon2(state: PdmpState) -> PdmpState:
-    ts = state.ts + state.horizon
-    xi, vi = state.integrator(state.x, state.v, state.horizon)
-    state = state._replace(x=xi, v=vi, ts=ts, hitting_horizon=state.hitting_horizon + 1)
     return state
 
 
@@ -163,7 +164,12 @@ def one_step_while(state: PdmpState) -> PdmpState:
     tp, lambda_bar = next_event(upper_bound, exp_rv)
     cond = tp > state.horizon
     state = state._replace(
-        tp=tp, exp_rv=exp_rv, lambda_bar=lambda_bar, key=key, upper_bound=upper_bound
+        tp=tp,
+        exp_rv=exp_rv,
+        lambda_bar=lambda_bar,
+        key=key,
+        upper_bound=upper_bound,
+        bound_evals=state.bound_evals + upper_bound.evals,
     )
     state = jax.lax.cond(cond, move_to_horizon, move_before_horizon, state)
     return state
@@ -177,6 +183,7 @@ def one_step(state: PdmpState) -> PdmpState:
         error_bound=jnp.array(0),
         rejected=jnp.array(0),
         hitting_horizon=jnp.array(0),
+        bound_evals=jnp.array(0),
         error_value_ar=jnp.zeros(5),
     )
     state = jax.lax.while_loop(cond_fun, one_step_while, state)

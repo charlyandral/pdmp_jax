@@ -17,12 +17,14 @@ class BoundBox(NamedTuple):
         box_max (Float[Array, "n_grid - 1"]): The maximum values on each segment of the grid.
         cum_sum (Float[Array, "n_grid - 1"]): The cumulative sum of box_max.
         step_size (Float[Array, ""]): The step size of the grid.
+        evals (Int[Array, ""]): The number of evaluations of the rate function used to compute the bound.
     """
 
     grid: Float[Array, " n_grid"]
     box_max: Float[Array, " n_grid - 1"]
     cum_sum: Float[Array, " n_grid - 1"]
     step_size: Float[Array, ""]
+    evals: Int[Array, ""] = jnp.array(0)
 
 
 class PdmpState(NamedTuple):
@@ -52,6 +54,7 @@ class PdmpState(NamedTuple):
         error_bound (Array[int, ""]): count of the number of errors in the upper bound
         rejected (Array[int, ""]): count of the number of rejections in the thinning
         hitting_horizon (Array[int, ""]): count of the number of hits of the horizon
+        bound_evals (Array[int, ""]): count of the rate evaluations used to compute the upper bounds
     """
 
     x: Float[Array, " dim"]
@@ -77,6 +80,7 @@ class PdmpState(NamedTuple):
     error_value_ar: Float[Array, ""] = jnp.zeros(5)
     rejected: Int[Array, ""] = jnp.array(0)
     hitting_horizon: Int[Array, ""] = jnp.array(0)
+    bound_evals: Int[Array, ""] = jnp.array(0)
     adaptive: Bool[Array, ""] = jnp.array(False)
     alpha_minus: Float[Array, ""] = jnp.array(1.04)
     alpha_plus: Float[Array, ""] = jnp.array(1.01)
@@ -102,5 +106,6 @@ class PdmpOutput(NamedTuple):
     error_value_ar: Float[Array, ""]
     rejected: Int[Array, ""]
     hitting_horizon: Int[Array, ""]
+    bound_evals: Int[Array, ""]
     ar: Float[Array, ""]
     horizon: Float[Array, ""]
