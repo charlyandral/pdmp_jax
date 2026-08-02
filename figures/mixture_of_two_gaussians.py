@@ -90,7 +90,9 @@ plt.plot(out.horizon)
 
 
 def loop(grid_size, seed, tmax) -> dict[str, Any]:
-    sampler = pdmp.BouncyParticle(dim, grad_U, grid_size, tmax, adaptive=False)
+    sampler = pdmp.BouncyParticle(
+        dim, grad_U, grid_size, tmax, adaptive=False, early_stop_bound=True
+    )
     seed1, seed2 = jax.random.split(jax.random.PRNGKey(seed))
     xinit = jax.random.normal(seed1, shape=(2,))
     vinit = jax.random.normal(seed2, shape=(2,))
