@@ -86,14 +86,10 @@ def ok_acceptance(state: PdmpState) -> PdmpState:
     state = state._replace(lambda_t=state.lambda_t, accept=accept, key=key)
     state = jax.lax.cond(accept, if_accept, if_not_accept, state)
     cond = jnp.logical_and(state.tp > state.horizon, jnp.logical_not(state.accept))
-    state = jax.lax.cond(cond, move_to_horizon2, lambda x: x, state)
-    return state
-
-
-def move_to_horizon2(state: PdmpState) -> PdmpState:
-    ts = state.ts + state.horizon
-    xi, vi = state.integrator(state.x, state.v, state.horizon)
-    state = state._replace(x=xi, v=vi, ts=ts, hitting_horizon=state.hitting_horizon + 1)
+    # the paper's line-18 branch: a horizon hit after rejections adapts tmax the
+    # same way as a direct hit (otherwise rejection/hit cycles shrink the
+    # horizon by alpha_minus with no counterpart and the adaptation drifts down)
+    state = jax.lax.cond(cond, move_to_horizon, lambda x: x, state)
     return state
 
 
