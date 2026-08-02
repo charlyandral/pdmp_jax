@@ -33,7 +33,7 @@ class BrentState(NamedTuple):
 
 
 def minimize_scalar_bounded_jax(
-    func, bounds, xatol=1e-7, maxiter=500
+    func, bounds, xatol=1e-5, maxiter=500
 ) -> dict[str, Array]:
     """Jax implementation of minimize_scalar_bounded from scipy.optimize.
 
@@ -66,10 +66,12 @@ def minimize_scalar_bounded_jax(
 
             def fun_true(s_in: BrentState) -> BrentState:
                 # Accept parabola: keep golden=0, update rat to parabolic step (with safeguard near boundaries)
+                rat_par = (p_par + 0.0) / q_abs
+                x_trial = s.xf + rat_par
                 rat_new = jnp.where(
-                    ((s.xf - s.a) < s.tol2) | ((s.b - s.xf) < s.tol2),
+                    ((x_trial - s.a) < s.tol2) | ((s.b - x_trial) < s.tol2),
                     s.tol1 * (jnp.sign(s.xm - s.xf) + ((s.xm - s.xf) == 0)),
-                    (p_par + 0.0) / q_abs,
+                    rat_par,
                 )
                 return s_in._replace(
                     e=e_new,

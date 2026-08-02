@@ -21,3 +21,15 @@ def test_quadratic_jitted():
     minimize_scalar_bounded_jax_jit = jax.jit(minimize_scalar_bounded_jax)
     res = minimize_scalar_bounded_jax_jit(f, bounds=(0.0, 5.0), xatol=1e-6, maxiter=200)
     assert bool(res["success"]) is True
+
+
+def test_boundary_minimum_no_stall():
+    # f(t) = -t has its minimum on the boundary; scipy's fminbound converges
+    # there in ~30 evaluations and so should the port (up to FMA/rounding
+    # noise). Regression: an xatol below the float32 resolution made the
+    # search crawl to maxiter on every boundary minimum.
+    f = jax_partial(lambda t: -t)
+    res = minimize_scalar_bounded_jax(f, bounds=(0.0, 10.0), xatol=1e-5)
+    assert bool(res["success"]) is True
+    assert int(res["evals"]) < 60
+    assert jnp.abs(res["argmin"] - 10.0) < 1e-3
