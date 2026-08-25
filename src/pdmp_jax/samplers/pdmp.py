@@ -324,8 +324,10 @@ class PDMP(abc.ABC):
         _global_rate_vect = None
 
         def _signed_rate(x0: Position, v0: Velocity, t: Time) -> RateIntensity:
+            # no refresh rate here: the signed strategy adds it after clipping
+            # the bound (upper_bound_grid), adding it here would count it twice
             xt, vt = self.integrator(x0, v0, t)
-            return self.grad_U(xt) @ vt + self.refresh_rate
+            return self.grad_U(xt) @ vt
 
         _signed_rate_vect = None
 
