@@ -67,8 +67,15 @@ def error_acceptance(state: PdmpState) -> PdmpState:
     exp_rv = jax.random.exponential(subkey)
     tp, lambda_bar = next_event(upper_bound, exp_rv)
     horizon_new = jnp.where(state.adaptive, horizon, state.horizon)
+    assert state.upper_bound
+    bound_new = jax.tree_util.tree_map(
+        lambda new, old: jnp.where(state.adaptive, new, old),
+        upper_bound,
+        state.upper_bound,
+    )
     state = state._replace(
         horizon=horizon_new,
+        upper_bound=bound_new,
         tp=tp,
         exp_rv=exp_rv,
         key=key,
