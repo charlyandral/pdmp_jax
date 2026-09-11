@@ -93,10 +93,7 @@ def ok_acceptance(state: PdmpState) -> PdmpState:
     state = state._replace(lambda_t=state.lambda_t, accept=accept, key=key)
     state = jax.lax.cond(accept, if_accept, if_not_accept, state)
     cond = jnp.logical_and(state.tp > state.horizon, jnp.logical_not(state.accept))
-    # the paper's line-18 branch: a horizon hit after rejections adapts tmax the
-    # same way as a direct hit (otherwise rejection/hit cycles shrink the
-    # horizon by alpha_minus with no counterpart and the adaptation drifts down)
-    state = jax.lax.cond(cond, move_to_horizon, lambda x: x, state)
+    state = jax.lax.cond(cond, move_to_horizon_after_rejection, lambda x: x, state)
     return state
 
 
@@ -151,12 +148,34 @@ def if_not_accept(state: PdmpState) -> PdmpState:
 
 
 def move_to_horizon(state: PdmpState) -> PdmpState:
+    """Advance to the horizon when the first proposal of the round overshoots it.
+
+    No proposal fell inside the horizon, which means it is too short, so tmax is
+    expanded by alpha_plus. Use `move_to_horizon_after_rejection` when the
+    crossing happens after a rejection.
+    """
     ts = state.ts + state.horizon
     xi, vi = state.integrator(state.x, state.v, state.horizon)
     horizon = jnp.where(state.adaptive, state.horizon * state.alpha_plus, state.horizon)
     state = state._replace(
         x=xi, v=vi, ts=ts, hitting_horizon=state.hitting_horizon + 1, horizon=horizon
     )
+    return state
+
+
+def move_to_horizon_after_rejection(state: PdmpState) -> PdmpState:
+    """Advance to the horizon after a rejection, leaving tmax unchanged.
+
+    Same move as `move_to_horizon`, but without the alpha_plus expansion: the
+    rejection that led here already shortened the horizon by alpha_minus, and
+    the crossing is a consequence of that shrinking, not evidence that tmax is
+    too small. Expanding here (a literal reading of line 25 of algorithm 4)
+    would refund part of the rejection feedback, so a rejection followed by a
+    crossing would only update tmax by alpha_plus / alpha_minus.
+    """
+    ts = state.ts + state.horizon
+    xi, vi = state.integrator(state.x, state.v, state.horizon)
+    state = state._replace(x=xi, v=vi, ts=ts, hitting_horizon=state.hitting_horizon + 1)
     return state
 
 
