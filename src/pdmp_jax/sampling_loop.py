@@ -50,92 +50,88 @@ def compare_pdmp_states(state1: PdmpState, state2: PdmpState) -> None:
 
 
 def move_before_horizon(state: PdmpState) -> PdmpState:
-    accept = jnp.array(False)
-    state = state._replace(accept=accept)
+    """Run the inner thinning loop using the bound's existing grid."""
+    state = state._replace(accept=jnp.array(False))
 
     def cond(state: PdmpState) -> Bool[Array, ""]:
-        return jnp.logical_and(state.tp < state.horizon, jnp.logical_not(state.accept))
+        # tp=inf exits after either a window end or a request to rebuild.
+        # The latter keeps x, v and both clocks unchanged.
+        return jnp.logical_and(state.tp <= state.horizon, jnp.logical_not(state.accept))
 
-    state = jax.lax.while_loop(cond, inner_while, state)
-    return state
+    return jax.lax.while_loop(cond, inner_while, state)
 
 
-def error_acceptance(state: PdmpState) -> PdmpState:
-    horizon = state.horizon / 2
-    upper_bound = state.upper_bound_func(state.x, state.v, horizon)
-    key, subkey = jax.random.split(state.key)
-    exp_rv = jax.random.exponential(subkey)
-    tp, lambda_bar = next_event(upper_bound, exp_rv)
-    horizon_new = jnp.where(state.adaptive, horizon, state.horizon)
-    assert state.upper_bound
-    bound_new = jax.tree_util.tree_map(
-        lambda new, old: jnp.where(state.adaptive, new, old),
-        upper_bound,
-        state.upper_bound,
-    )
-    state = state._replace(
-        horizon=horizon_new,
-        upper_bound=bound_new,
-        tp=tp,
-        exp_rv=exp_rv,
-        key=key,
-        lambda_bar=lambda_bar,
+def record_bound_error(state: PdmpState) -> PdmpState:
+    """Record a detected violation without deciding how to handle it."""
+    return state._replace(
         error_bound=state.error_bound + 1,
         error_value_ar=state.error_value_ar.at[state.error_bound % 5].set(state.ar),
-        bound_evals=state.bound_evals + upper_bound.evals,
     )
-    return state
+
+
+def request_bound_rebuild(state: PdmpState) -> PdmpState:
+    """Halve the horizon and exit the inner loop without advancing the flow.
+
+    one_step_while will construct the replacement bound and draw a fresh
+    candidate on the next outer iteration. No horizon hit is recorded here.
+    """
+    return state._replace(
+        horizon=state.horizon / 2,
+        tp=jnp.full_like(state.tp, jnp.inf),
+        accept=jnp.array(False),
+    )
 
 
 def ok_acceptance(state: PdmpState) -> PdmpState:
     key, subkey = jax.random.split(state.key)
-    accept = jax.random.bernoulli(subkey, state.ar)
+    # Keep the raw ratio in state.ar for diagnostics, including values above 1.
+    accept = jax.random.bernoulli(subkey, jnp.minimum(state.ar, 1.0))
     state = state._replace(lambda_t=state.lambda_t, accept=accept, key=key)
     state = jax.lax.cond(accept, if_accept, if_not_accept, state)
-    cond = jnp.logical_and(state.tp > state.horizon, jnp.logical_not(state.accept))
-    # the paper's line-18 branch: a horizon hit after rejections adapts tmax the
-    # same way as a direct hit (otherwise rejection/hit cycles shrink the
-    # horizon by alpha_minus with no counterpart and the adaptation drifts down)
-    state = jax.lax.cond(cond, move_to_horizon, lambda x: x, state)
     return state
 
 
 def inner_while(state: PdmpState) -> PdmpState:
+    """Process one candidate inside the current horizon."""
     lambda_t = state.rate(state.x, state.v, state.tp)
     ar = lambda_t / state.lambda_bar
     state = state._replace(lambda_t=lambda_t, ar=ar)
-    state = jax.lax.cond(ar > 1.0, error_acceptance, ok_acceptance, state)
-    return state
+    invalid = ar > 1.0
+    state = jax.lax.cond(invalid, record_bound_error, lambda s: s, state)
+    # Normal candidates and fixed-horizon violations share the same acceptance
+    # path; ok_acceptance clips the probability but preserves the raw ratio.
+    return jax.lax.cond(
+        jnp.logical_and(invalid, state.adaptive),
+        request_bound_rebuild,
+        ok_acceptance,
+        state,
+    )
 
 
 def if_accept(state: PdmpState) -> PdmpState:
     x, v = state.integrator(state.x, state.v, state.tp)
     key, subkey = jax.random.split(state.key)
     v = state.velocity_jump(x, v, subkey)  # type: ignore
-    t = state.t + state.tp + state.ts
-    indicator = jnp.array(True)
-    ts = jnp.array(0.0)
-    tp = jnp.array(0.0)
-    accept = jnp.array(True)
     state = state._replace(
         x=x,
         v=v,
-        t=t,
-        indicator=indicator,
-        ts=ts,
-        tp=tp,
-        accept=accept,
+        t=state.t + state.ts + state.tp,
+        ts=jnp.zeros_like(state.ts),
+        tp=jnp.zeros_like(state.tp),
+        indicator=jnp.array(True),
+        accept=jnp.array(True),
         key=key,
     )
     return state
 
 
 def if_not_accept(state: PdmpState) -> PdmpState:
+    """Shrink immediately, without restarting before the rejected candidate."""
+    assert state.upper_bound is not None
+    rejected_time = state.tp
     key, subkey = jax.random.split(state.key)
     exp_rv = state.exp_rv + jax.random.exponential(subkey)
-    assert state.upper_bound
     tp, lambda_bar = next_event(state.upper_bound, exp_rv)
-    # problem here with tp if x64 is used before importing the package
     horizon = jnp.where(
         state.adaptive, state.horizon / state.alpha_minus, state.horizon
     )
@@ -147,25 +143,42 @@ def if_not_accept(state: PdmpState) -> PdmpState:
         rejected=state.rejected + 1,
         horizon=horizon,
     )
-    return state
+    # Reuse the bound on the shortened interval. If shortening
+    # passes the rejected candidate, that candidate is the earliest safe restart.
+    reached = jnp.logical_or(rejected_time >= horizon, tp > horizon)
+    return jax.lax.cond(
+        reached,
+        lambda s: move_to_horizon(s, jnp.maximum(rejected_time, horizon)),
+        lambda s: s,
+        state,
+    )
 
 
-def move_to_horizon(state: PdmpState) -> PdmpState:
-    ts = state.ts + state.horizon
-    xi, vi = state.integrator(state.x, state.v, state.horizon)
+def move_to_horizon(
+    state: PdmpState, duration: float | Array | None = None
+) -> PdmpState:
+    if duration is None:
+        duration = state.horizon
+    x, v = state.integrator(state.x, state.v, duration)
     horizon = jnp.where(state.adaptive, state.horizon * state.alpha_plus, state.horizon)
     state = state._replace(
-        x=xi, v=vi, ts=ts, hitting_horizon=state.hitting_horizon + 1, horizon=horizon
+        x=x,
+        v=v,
+        ts=state.ts + duration,
+        tp=jnp.full_like(state.tp, jnp.inf),
+        hitting_horizon=state.hitting_horizon + 1,
+        horizon=horizon,
     )
     return state
 
 
 def one_step_while(state: PdmpState) -> PdmpState:
+    """Construct a bound, then reuse it until acceptance or a window exit."""
     upper_bound = state.upper_bound_func(state.x, state.v, state.horizon)
     key, subkey = jax.random.split(state.key)
     exp_rv = jax.random.exponential(subkey)
     tp, lambda_bar = next_event(upper_bound, exp_rv)
-    cond = tp > state.horizon
+    cond = tp > upper_bound.grid[-1]
     state = state._replace(
         tp=tp,
         exp_rv=exp_rv,
@@ -173,12 +186,14 @@ def one_step_while(state: PdmpState) -> PdmpState:
         key=key,
         upper_bound=upper_bound,
         bound_evals=state.bound_evals + upper_bound.evals,
+        accept=jnp.array(False),
     )
     state = jax.lax.cond(cond, move_to_horizon, move_before_horizon, state)
     return state
 
 
 def one_step(state: PdmpState) -> PdmpState:
+    """Outer loop over bound constructions until the next accepted event."""
     def cond_fun(state):
         return jnp.logical_not(state.indicator)
 

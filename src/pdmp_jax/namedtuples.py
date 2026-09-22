@@ -35,7 +35,8 @@ class PdmpState(NamedTuple):
         x (Array[float, "dim"]): position
         v (Array[float, "dim"]): velocity
         t (Array[float, ""]): time
-        horizon (Array[float, ""]): horizon
+        horizon (Array[float, ""]): current horizon parameter; the original
+            bound-grid endpoint is retained in upper_bound.grid[-1]
         key (PRNGKeyArray): random key
         integrator (Callable[[Array, Array, Array], Tuple[Array, Array]]): integrator function
         grad_U (Callable[[Array], Array]): gradient of the potential function

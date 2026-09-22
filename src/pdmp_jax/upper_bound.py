@@ -155,14 +155,30 @@ def next_event(
 
     Returns:
         tuple: A tuple containing the next event time (t_prop) and the corresponding upper bound value.
+            Returns (inf, 0) when no candidate lies before the grid horizon.
     """
 
-    index = jnp.searchsorted(boundbox.cum_sum, exp_rv)
-    # if the index is the last element, meaning that exp_rv > cum_sum[-1], it returns infinity
-    t_prop = (
-        boundbox.grid[index - 1]
-        + (exp_rv - boundbox.cum_sum[index - 1])
-        / (boundbox.cum_sum[index] - boundbox.cum_sum[index - 1])
-        * boundbox.step_size
+    # Skip cumulative masses <= exp_rv, including zero-rate intervals.
+    index = jnp.searchsorted(boundbox.cum_sum, exp_rv, side="right")
+
+    def within_horizon(index):
+        t_prop = (
+            boundbox.grid[index - 1]
+            + (exp_rv - boundbox.cum_sum[index - 1])
+            / (boundbox.cum_sum[index] - boundbox.cum_sum[index - 1])
+            * boundbox.step_size
+        )
+        return t_prop, boundbox.box_max[index - 1]
+
+    time_dtype = jnp.result_type(
+        boundbox.grid, boundbox.cum_sum, boundbox.step_size, exp_rv
     )
-    return t_prop, boundbox.box_max[index - 1]
+    return jax.lax.cond(
+        index < boundbox.cum_sum.size,
+        within_horizon,
+        lambda _: (
+            jnp.asarray(jnp.inf, dtype=time_dtype),
+            jnp.zeros_like(boundbox.box_max[0]),
+        ),
+        index,
+    )
