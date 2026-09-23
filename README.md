@@ -2,15 +2,33 @@
 
 ## ⚠️ Performance Notice
 
-Some recent JAX releases have CPU performance regressions  
-(especially **0.7.1**). For best results we recommend:
+Since JAX 0.4.32, XLA uses a new CPU runtime (the "thunk" runtime) that adds a fixed cost every time the body of a `while_loop` or a `lax.cond` branch is executed. The sampling loop is made of such small, data-dependent loops, so with default settings it runs about 3-4x slower in low and moderate dimension (the gap vanishes in high dimension, where the rate evaluations dominate), and about 40x slower on JAX 0.7.1. Set one of the following before importing JAX:
 
-- Use **JAX 0.6.2**  
-- Set the environment variable:
+- **JAX ≥ 0.7.1** (tested up to 0.11.2): let XLA compile the while loops into single kernels by raising the size limit of its small-while-loop pass (1 kB by default):
+
+  ```bash
+  export XLA_FLAGS="--xla_backend_extra_options=xla_cpu_small_while_loop_byte_threshold=1000000000"
+  ```
+
+- **JAX 0.4.32 to 0.6.2** (0.6.2 is pinned in `pyproject.toml`): use the old runtime. This flag is ignored from 0.7 on, and makes 0.7.0 and 0.7.1 crash (`CpuExecutable has no thunks`).
 
   ```bash
   export XLA_FLAGS="--xla_cpu_use_thunk_runtime=false"
-  
+  ```
+
+Both restore the same speed, and give the same results up to floating-point rounding (bit-identical with a grid bound; with the Brent bound, `grid_size=0`, the first setting reproduces the old runtime exactly, whereas the default thunk runtime rounds differently and uses about 2% more rate evaluations). The small-while-loop pass skips loops that contain `sort`, `scatter`, FFT or custom calls, so a potential using e.g. `jnp.sort` does not benefit from it.
+
+Indicative throughput (ZigZag, Gaussian target, dimension 50, grid size 10, Apple Silicon CPU):
+
+| JAX version | `XLA_FLAGS` | events/s |
+|---|---|---|
+| 0.6.2 | none | ~110k |
+| 0.6.2 | `--xla_cpu_use_thunk_runtime=false` | ~420k |
+| 0.7.1 | none | ~2k |
+| 0.7.1 | `--xla_backend_extra_options=xla_cpu_small_while_loop_byte_threshold=1000000000` | ~410k |
+| 0.11.2 | none | ~120k |
+| 0.11.2 | `--xla_backend_extra_options=xla_cpu_small_while_loop_byte_threshold=1000000000` | ~415k |
+
 ## Documentation
 This repository contains a JAX implementation of the PDMP sampler describe in the article ["Automated Techniques for Efficient Sampling of Piecewise-Deterministic Markov Processes"](https://arxiv.org/abs/2408.03682).
 The following PDMP samplers are implemented:
